@@ -164,7 +164,7 @@ export default function Compose() {
         {!is_comment && (
           <Button
             disabled={isPosting || is_creating_post || !!inputErrors}
-            className="btn-primary-outline btn-md text-white !px-8 rounded-lg"
+            className="btn-primary-outline btn-md rounded-lg !px-8 text-white"
             onPress={() => attemptCreatePost("draft")}
           >
             {"Draft"}
@@ -172,7 +172,7 @@ export default function Compose() {
         )}
         <Button
           disabled={isPosting || is_creating_post || !!inputErrors}
-          className="btn-primary btn-md font-regular text-white !px-8 rounded-lg"
+          className="btn-primary btn-md font-regular rounded-lg !px-8 text-white"
           onPress={() => attemptCreatePost("publish")}
         >
           {is_comment ? "Reply" : "Post"}

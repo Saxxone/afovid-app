@@ -162,7 +162,7 @@ const ShortPostBuilder = memo(({ ...props }: Props) => {
         numberOfLines={7}
         onValidationError={handleValidationError}
       />
-      <Text className="text-sm text-gray-400 text-right">
+      <Text className="text-right text-sm text-gray-400">
         {props.post.text?.length ?? 0}/300
       </Text>
       <FilePicker onSelected={setPostMedia} maxFiles={4} ratio={[5, 3]} />

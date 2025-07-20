@@ -194,7 +194,7 @@ const LongPostBuilder = memo(({ ...props }: Props) => {
         <View style={tailwindClasses("h-7 w-7")}>
           {contents.length > 1 ? (
             <Button
-              className="flex items-center justify-center bg-gray-900 rounded-full px-0 py-0 h-7 w-7"
+              className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-900 px-0 py-0"
               onPress={removePage}
               disabled={contents.length === 1}
             >
@@ -253,7 +253,7 @@ const LongPostBuilder = memo(({ ...props }: Props) => {
                 ratio={[5, 3]}
                 validationRules={validation_rules.media}
                 onValidationError={handleValidationError}
-                className="h-56 text-main  flex flex-row justify-center items-center text-center border-gray-600 mb-4 rounded-lg border"
+                className="text-main mb-4 flex h-56 flex-row items-center justify-center rounded-lg border border-gray-600 text-center"
               >
                 {placeholderFiles[index] ? (
                   <FilePreview
@@ -284,7 +284,7 @@ const LongPostBuilder = memo(({ ...props }: Props) => {
                 numberOfLines={7}
                 onValidationError={handleValidationError}
               />
-              <Text className="text-sm text-gray-400 text-right">
+              <Text className="text-right text-sm text-gray-400">
                 {props.post?.content?.[index]?.text?.length ?? 0}/300
               </Text>
             </View>

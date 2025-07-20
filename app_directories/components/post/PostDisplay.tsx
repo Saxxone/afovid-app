@@ -54,7 +54,7 @@ const PostDisplay = memo(({ post, ellipsis, actions, isFetching }: Props) => {
                 postId={post.id}
               />
             ) : null}
-            <Text className="break-word font-normal mt-2">
+            <Text className="break-word mt-2 font-normal">
               {String(post.text)}
             </Text>
           </>
