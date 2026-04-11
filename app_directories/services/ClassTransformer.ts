@@ -2,43 +2,27 @@ import { StyleSheet } from "react-native";
 import tailwind_to_RN_map from "./tailwind";
 
 /**
- * Transforms a string of Tailwind CSS classes into a React Native stylesheet object.
+ * Transforms Tailwind CSS class names into a React Native stylesheet object.
+ * Pass one space-separated string and/or multiple arguments — each token is resolved against the map.
  *
- * @param {string} className A string of space-separated Tailwind CSS class names.
- * @returns {object} A React Native stylesheet object created using `StyleSheet.create()`.
+ * @example tailwindClasses("container flex-1")
+ * @example tailwindClasses("container", "flex-1")
  */
 
-type ClassKeys = keyof typeof tailwind_to_RN_map;
-
-type Join<K, P> = K extends string | number
-  ? P extends string | number
-    ? `${K} ${P}`
-    : never
-  : never;
-
-type Combinations<
-  T extends string,
-  U extends string = T,
-  Depth extends number = 3,
-> = Depth extends 0
-  ? never
-  : T extends any
-    ? T | Join<T, Combinations<Exclude<U, T>, Exclude<U, T>, Decrement<Depth>>>
-    : never;
-
-type Decrement<N extends number> = N extends 1 ? 0 : never;
-
-type SpaceSeparatedKeys = Combinations<ClassKeys>;
+export type ClassKeys = keyof typeof tailwind_to_RN_map;
 
 const tailwindClasses = (
-  class_name: SpaceSeparatedKeys,
+  ...class_names: (ClassKeys | string)[]
 ): StyleSheet.NamedStyles<object> => {
   let styles = {};
-  const classes = class_name.split(" ");
+  const tokens = class_names.flatMap((c) =>
+    String(c).trim().split(/\s+/).filter(Boolean),
+  );
 
-  classes.forEach((cls) => {
-    if (tailwind_to_RN_map[cls]) {
-      styles = { ...styles, ...tailwind_to_RN_map[cls] };
+  tokens.forEach((cls) => {
+    if (cls in tailwind_to_RN_map) {
+      const key = cls as ClassKeys;
+      styles = { ...styles, ...tailwind_to_RN_map[key] };
     }
   });
 

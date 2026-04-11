@@ -9,13 +9,20 @@ interface Props {
   mediaTypes: string[];
   readonly className?: string;
   postId: string;
+  /** Taller media strip when this grid includes video (e.g. home feed) */
+  readonly emphasizeVideo?: boolean;
 }
 
 const SocialDisplayPostMedia = memo(
-  ({ media, className, mediaTypes, postId }: Props) => {
+  ({ media, className, mediaTypes, postId, emphasizeVideo = false }: Props) => {
     const classes = useMemo(
       () => tailwindClasses(className ?? ""),
       [className],
+    );
+
+    const hasVideo = useMemo(
+      () => mediaTypes?.some((t) => t === "video") ?? false,
+      [mediaTypes],
     );
 
     const dynamicGridClasses = useMemo(() => {
@@ -46,9 +53,13 @@ const SocialDisplayPostMedia = memo(
     return (
       <View
         style={[
-          tailwindClasses(
-            "rounded-lg h-64 overflow-hidden flex flex-row flex-wrap",
-          ),
+          emphasizeVideo && hasVideo
+            ? tailwindClasses(
+                "rounded-lg h-96 overflow-hidden flex flex-row flex-wrap",
+              )
+            : tailwindClasses(
+                "rounded-lg h-64 overflow-hidden flex flex-row flex-wrap",
+              ),
           classes,
         ]}
       >

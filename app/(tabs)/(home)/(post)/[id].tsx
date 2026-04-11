@@ -18,7 +18,6 @@ import {
 } from "react-native";
 
 const POSTS_PER_PAGE = 9;
-const ESTIMATED_ITEM_SIZE = 250;
 
 export default function PostScreen() {
   const { id } = useLocalSearchParams();
@@ -163,7 +162,6 @@ export default function PostScreen() {
           }}
           onEndReachedThreshold={0.5}
           ListFooterComponent={renderFooter}
-          estimatedItemSize={ESTIMATED_ITEM_SIZE}
         />
       </View>
     ) : (

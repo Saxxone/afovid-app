@@ -42,3 +42,14 @@ export interface LongPostBlock {
   media: string[];
   mediaTypes?: MediaType[];
 }
+
+export function postContainsVideo(post: Post): boolean {
+  if (post.type === "SHORT") {
+    return post.mediaTypes?.some((t) => t === "video") ?? false;
+  }
+  const blocks = post.longPost?.content;
+  if (!blocks?.length) return false;
+  return blocks.some(
+    (block) => block.mediaTypes?.some((t) => t === "video") ?? false,
+  );
+}
