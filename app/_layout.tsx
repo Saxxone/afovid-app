@@ -1,6 +1,11 @@
+import { install } from "react-native-quick-crypto";
+install();
+
 import SnackBar from "@/app_directories/components/app/SnackBar";
+import { app_routes } from "@/app_directories/constants/AppRoutes";
 import { DarkTheme, LightTheme } from "@/app_directories/constants/Theme";
 import { SessionProvider } from "@/app_directories/context/AppContext";
+import { I18nProvider } from "@/app_directories/context/I18nProvider";
 import {
   SnackBarProvider,
   useSnackBar,
@@ -9,8 +14,9 @@ import tailwindClasses from "@/app_directories/services/ClassTransformer";
 import { headerDark, headerLight } from "@/app_directories/styles/main";
 import { ThemeProvider } from "@react-navigation/native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import * as Notifications from "expo-notifications";
 import { useFonts } from "expo-font";
-import { Slot, Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useState } from "react";
@@ -20,7 +26,40 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 SplashScreen.preventAutoHideAsync();
 
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
 const queryClient = new QueryClient();
+
+function NotificationOpenPostBridge() {
+  const router = useRouter();
+
+  useEffect(() => {
+    const navigateFromData = (data: Record<string, unknown> | undefined) => {
+      const postId = typeof data?.postId === "string" ? data.postId : "";
+      if (postId) router.push(app_routes.post.view(postId));
+    };
+
+    const sub = Notifications.addNotificationResponseReceivedListener((res) => {
+      navigateFromData(
+        res.notification.request.content.data as
+          | Record<string, unknown>
+          | undefined,
+      );
+    });
+
+    return () => sub.remove();
+  }, [router]);
+
+  return null;
+}
 
 export default function RootLayout() {
   const color_scheme = useColorScheme();
@@ -48,14 +87,16 @@ export default function RootLayout() {
 
   return (
     <SessionProvider>
-      <ThemeProvider value={color_scheme === "dark" ? DarkTheme : LightTheme}>
-        <QueryClientProvider client={queryClient}>
-          <SnackBarProvider>
-            <LayoutContents />
-          </SnackBarProvider>
-        </QueryClientProvider>
-        <StatusBar style="auto" />
-      </ThemeProvider>
+      <I18nProvider>
+        <ThemeProvider value={color_scheme === "dark" ? DarkTheme : LightTheme}>
+          <QueryClientProvider client={queryClient}>
+            <SnackBarProvider>
+              <LayoutContents />
+            </SnackBarProvider>
+          </QueryClientProvider>
+          <StatusBar style="auto" />
+        </ThemeProvider>
+      </I18nProvider>
     </SessionProvider>
   );
 }
@@ -81,6 +122,7 @@ function LayoutContents() {
 
   return (
     <>
+      <NotificationOpenPostBridge />
       <SafeAreaView
         style={[
           tailwindClasses("flex-1"),
@@ -106,7 +148,24 @@ function LayoutContents() {
               headerShown: false,
             }}
           />
-          <Slot />
+          <Stack.Screen
+            name="(tabs)"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="compose"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="(profile)"
+            options={{
+              headerShown: false,
+            }}
+          />
         </Stack>
       </SafeAreaView>
       {showSnackBar && <SnackBar snack={snackBar} onClose={closeSnack} />}

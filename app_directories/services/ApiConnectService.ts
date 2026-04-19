@@ -1,6 +1,7 @@
 import * as SecureStore from "expo-secure-store";
 import * as Keychain from "react-native-keychain";
 import api_routes from "../constants/ApiRoutes";
+import { getExpoPublicApiBase } from "../constants/envPublic";
 import { FetchMethod } from "../types/types";
 
 interface Props {
@@ -23,9 +24,9 @@ interface PasswordPair {
   password: string;
 }
 
-const ACCESS_TOKEN_URL = process.env.EXPO_PUBLIC_API_BASE_URL + "_access_token";
-const REFRESH_TOKEN_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL + "_refresh_token";
+const API_BASE = getExpoPublicApiBase();
+const ACCESS_TOKEN_URL = API_BASE + "_access_token";
+const REFRESH_TOKEN_URL = API_BASE + "_refresh_token";
 let is_refreshing = false;
 let refreshSubscribers: ((token: string) => void)[] = [];
 
@@ -114,6 +115,9 @@ const getTokens = async (): Promise<TokenPair> => {
  */
 const logout = async () => {
   try {
+    const { unregisterPushBeforeLogout } =
+      await import("@/app_directories/services/pushRegistration");
+    await unregisterPushBeforeLogout();
     await Promise.all([
       Keychain.resetGenericPassword(),
       Keychain.resetInternetCredentials({

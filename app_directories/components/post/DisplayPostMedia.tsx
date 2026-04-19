@@ -11,10 +11,27 @@ interface Props {
   postId: string;
   /** Taller media strip when this grid includes video (e.g. home feed) */
   readonly emphasizeVideo?: boolean;
+  /** Home feed: when false, inline video stays paused until this post is the active row. */
+  readonly isFeedVideoActive?: boolean;
+  /** Inline feed: show mute/unmute (matches web default). */
+  readonly showVideoMuteToggle?: boolean;
+  /** Post detail: pass through to VideoViewer for watch history. */
+  readonly recordWatchPostId?: string;
 }
 
+const cellFillStyle = { flex: 1, width: "100%" as const, minHeight: 0 };
+
 const SocialDisplayPostMedia = memo(
-  ({ media, className, mediaTypes, postId, emphasizeVideo = false }: Props) => {
+  ({
+    media,
+    className,
+    mediaTypes,
+    postId,
+    emphasizeVideo = false,
+    isFeedVideoActive,
+    showVideoMuteToggle = true,
+    recordWatchPostId,
+  }: Props) => {
     const classes = useMemo(
       () => tailwindClasses(className ?? ""),
       [className],
@@ -67,6 +84,7 @@ const SocialDisplayPostMedia = memo(
           <View
             key={m + index}
             style={[
+              cellFillStyle,
               tailwindClasses(dynamicGridClasses),
               tailwindClasses(dynamicGridRows(index)),
             ]}
@@ -75,15 +93,24 @@ const SocialDisplayPostMedia = memo(
               key={m + index}
               onPress={() => selectMedia(index)}
               style={[
+                cellFillStyle,
                 tailwindClasses(
-                  "overflow-hidden rounded-lg block cursor-pointer",
+                  "overflow-hidden rounded-lg block cursor-pointer h-full",
                 ),
               ]}
             >
               {mediaTypes?.[index] === "image" ? (
                 <ImageViewer source={m} />
               ) : (
-                <VideoViewer source={m} controls={false} autoplay={true} />
+                <VideoViewer
+                  source={m}
+                  controls={false}
+                  autoplay={true}
+                  shouldPlay={isFeedVideoActive !== false}
+                  showMuteToggle={showVideoMuteToggle}
+                  allowFullscreen={false}
+                  recordWatchPostId={recordWatchPostId}
+                />
               )}
             </Pressable>
           </View>

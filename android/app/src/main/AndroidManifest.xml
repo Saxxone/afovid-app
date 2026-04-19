@@ -25,8 +25,8 @@
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="myapp"/>
-        <data android:scheme="com.anonymous.breeapp"/>
-        <data android:scheme="exp+bree-app"/>
+        <data android:scheme="com.anonymous.afovidapp"/>
+        <data android:scheme="exp+afovid-app"/>
       </intent-filter>
     </activity>
   </application>

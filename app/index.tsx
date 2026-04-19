@@ -26,7 +26,7 @@ export default function Index() {
       )}
     >
       <Image
-        source={require("@/app_directories/assets/images/bree.png")}
+        source={require("@/app_directories/assets/images/afovid.png")}
         contentFit="cover"
         style={[tailwindClasses("rounded-lg h-20 w-20 object-cover")]}
       />

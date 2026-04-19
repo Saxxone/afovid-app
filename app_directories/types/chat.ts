@@ -16,6 +16,7 @@ export interface Chat {
   deletedByMe?: boolean;
   room?: Room;
   roomId: string;
+  encryptedPayload?: string | null;
   senderEncryptedMessage?: ArrayBuffer;
   receiverEncryptedMessage?: ArrayBuffer;
   userEncryptedMessages?: UserEncryptedMessage[];

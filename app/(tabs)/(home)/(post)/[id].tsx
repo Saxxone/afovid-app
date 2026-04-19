@@ -119,6 +119,7 @@ export default function PostScreen() {
           actions={true}
           isFetching={is_fetching_post}
           post={post?.data}
+          recordWatchForPost
         />
       </View>
     ) : null;

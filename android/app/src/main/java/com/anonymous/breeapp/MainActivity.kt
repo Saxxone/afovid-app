@@ -1,4 +1,4 @@
-package com.anonymous.breeapp
+package com.anonymous.afovidapp
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

@@ -1,8 +1,10 @@
 import Text from "@/app_directories/components/app/Text";
+import { app_routes } from "@/app_directories/constants/AppRoutes";
 import { violet_400 } from "@/app_directories/constants/Colors";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
-import React, { memo } from "react";
-import { Image, View } from "react-native";
+import { useRouter } from "expo-router";
+import React, { memo, useCallback } from "react";
+import { Image, Pressable, View } from "react-native";
 import tailwindClasses from "@/app_directories/services/ClassTransformer";
 import { Post } from "../../types/post";
 
@@ -11,6 +13,11 @@ interface Props {
 }
 
 const PostTop = memo(({ post }: Props) => {
+  const router = useRouter();
+  const openAuthor = useCallback(() => {
+    router.push(app_routes.profile.view(post.authorId));
+  }, [router, post.authorId]);
+
   return (
     <>
       {post.parentId ? (
@@ -20,7 +27,12 @@ const PostTop = memo(({ post }: Props) => {
           style={tailwindClasses("text-gray-400 block mb-1")}
         />
       ) : null}
-      <View style={tailwindClasses("flex-row items-start gap-2 mb-2")}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="View author profile"
+        onPress={openAuthor}
+        style={tailwindClasses("flex-row items-start gap-2 mb-2")}
+      >
         <Image
           source={{
             uri: post.author?.img as string,
@@ -39,7 +51,7 @@ const PostTop = memo(({ post }: Props) => {
           color={violet_400}
           style={tailwindClasses("mt-0.5")}
         />
-      </View>
+      </Pressable>
     </>
   );
 });

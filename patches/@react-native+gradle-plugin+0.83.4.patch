@@ -1,0 +1,24 @@
+diff --git a/node_modules/@react-native/gradle-plugin/settings-plugin/src/main/kotlin/com/facebook/react/ReactSettingsExtension.kt b/node_modules/@react-native/gradle-plugin/settings-plugin/src/main/kotlin/com/facebook/react/ReactSettingsExtension.kt
+index 11d5baa..443ef02 100644
+--- a/node_modules/@react-native/gradle-plugin/settings-plugin/src/main/kotlin/com/facebook/react/ReactSettingsExtension.kt
++++ b/node_modules/@react-native/gradle-plugin/settings-plugin/src/main/kotlin/com/facebook/react/ReactSettingsExtension.kt
+@@ -191,6 +191,18 @@ abstract class ReactSettingsExtension @Inject constructor(val settings: Setting
+     internal fun computeSha256(lockFile: File) =
+         String.format("%032x", BigInteger(1, md.digest(lockFile.readBytes())))
+ 
++    internal fun isConfigModelInvalid(model: ModelAutolinkingConfigJson?): Boolean {
++      val androidProject = model?.project?.android ?: return true
++      if (!File(androidProject.sourceDir).exists()) {
++        return true
++      }
++
++      return model.dependencies
++          ?.values
++          ?.filterNot { it.platforms?.android?.isPureCxxDependency == true }
++          ?.any { dependency ->
++            dependency.platforms?.android?.sourceDir?.let { sourceDir -> !File(sourceDir).exists() }
++                ?: false
++          } == true
++    }
+  }
+ }

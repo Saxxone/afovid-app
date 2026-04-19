@@ -20,10 +20,22 @@ type Props = {
   readonly isFetching: boolean;
   /** Taller media area for video on home feed only */
   readonly emphasizeVideo?: boolean;
+  /** Home feed: pause inline video when this post is not the list’s active row. */
+  readonly isFeedVideoActive?: boolean;
+  /** Post detail: record watch after ~4s video playback. */
+  readonly recordWatchForPost?: boolean;
 };
 
 const PostDisplay = memo(
-  ({ post, ellipsis, actions, isFetching, emphasizeVideo = false }: Props) => {
+  ({
+    post,
+    ellipsis,
+    actions,
+    isFetching,
+    emphasizeVideo = false,
+    isFeedVideoActive,
+    recordWatchForPost = false,
+  }: Props) => {
     const color_scheme = useColorScheme();
     const bg_color = useMemo(
       () =>
@@ -56,6 +68,8 @@ const PostDisplay = memo(
                   mediaTypes={post.mediaTypes}
                   postId={post.id}
                   emphasizeVideo={emphasizeVideo}
+                  isFeedVideoActive={isFeedVideoActive}
+                  recordWatchPostId={recordWatchForPost ? post.id : undefined}
                 />
               ) : null}
               <Text className="break-word mt-2 font-normal">
@@ -81,6 +95,10 @@ const PostDisplay = memo(
                       mediaTypes={content.mediaTypes as string[]}
                       postId={post.id}
                       emphasizeVideo={emphasizeVideo}
+                      isFeedVideoActive={isFeedVideoActive}
+                      recordWatchPostId={
+                        recordWatchForPost ? post.id : undefined
+                      }
                     />
 
                     <PagerViewIndicator

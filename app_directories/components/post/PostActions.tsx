@@ -89,7 +89,7 @@ const PostActions = memo(({ post, className }: Props) => {
   async function sharePost() {
     try {
       const result = await Share.share({
-        message: `See this post on Bree: ${api_routes.posts.getPostById(post.id)}`,
+        message: `See this post on afovid: ${api_routes.posts.getPostById(post.id)}`,
       });
       if (result.action === Share.sharedAction) {
         if (result.activityType) {

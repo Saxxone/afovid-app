@@ -1,8 +1,12 @@
 const en = {
   settings: {},
+  common: {
+    error: "Error",
+  },
   navigation: {
     home: "Home",
-    explore: "Explore",
+    explore: "Search",
+    history: "History",
     messages: "Messages",
     notifications: "Notifications",
     profile: "Profile",
@@ -29,9 +33,15 @@ const en = {
     create_account: "Create new account?",
     sign_up: "Sign up",
     page_title: "Login",
+    required_fields: "Username or email and password are required.",
+    login_failed: "Login failed. Please try again.",
+    validation_password_required: "Password is required.",
+    validation_password_min: "Password must be at least 4 characters.",
+    validation_username_required: "Username is required.",
   },
   home: {
     page_title: "Home",
+    empty_feed: "No posts found.",
   },
   posts: {
     create_post: "Create Post",
@@ -47,6 +57,7 @@ const en = {
     show_more: "Show more",
     show_less: "Show less",
     no_results: "No posts yet",
+    display_error: "Post cannot be displayed.",
     page_title: "Posts",
     create_long_post: "Long post",
     create_short_post: "Short post",
@@ -73,11 +84,27 @@ const en = {
   explore: {
     placeholder: "Search",
     no_results: "No results found",
-    page_title: "Explore",
+    page_title: "Search",
+    hint_empty: "Search posts",
+  },
+  history: {
+    page_title: "History",
+    tab_history: "History",
+    tab_liked: "Liked",
+    tab_paid: "Paid",
+    empty_history:
+      "No watch history yet. Open a video post and watch for a few seconds.",
+    empty_liked: "No liked videos yet.",
+    empty_paid: "No paid unlocks yet.",
+    login_prompt:
+      "Sign in to see your watch history, liked videos, and paid content.",
   },
   notifications: {
     no_results: "No notifications",
     page_title: "Notifications",
+    mark_all_read: "Read all",
+    delete: "Delete",
+    open_post: "Open post",
   },
   messages: {
     no_results: "No messages",
@@ -86,7 +113,17 @@ const en = {
   chat: {
     page_title: "Chat",
     direct_message: "Direct Message",
-    new: "say something...",
+    new: "Say something…",
+    missing_peer_key: "This user has not set up encryption yet.",
+    encryption_failed: "Could not encrypt your message.",
+    send_failed: "Could not send your message.",
+    setup_keys_hint:
+      "End-to-end encryption needs a key pair on this device. Generate keys to continue.",
+    generate_keys: "Generate encryption keys",
+  },
+  not_found: {
+    title: "Oops! This screen doesn't exist.",
+    go_home: "Go to home screen",
   },
 };
 

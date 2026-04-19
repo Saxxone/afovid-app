@@ -1,6 +1,7 @@
 import Text from "@/app_directories/components/app/Text";
 import PostDisplay from "@/app_directories/components/post/PostDisplay";
 import api_routes from "@/app_directories/constants/ApiRoutes";
+import { useI18n } from "@/app_directories/context/I18nProvider";
 import { useSnackBar } from "@/app_directories/context/SnackBarProvider";
 import { ApiConnectService } from "@/app_directories/services/ApiConnectService";
 import tailwindClasses from "@/app_directories/services/ClassTransformer";
@@ -13,7 +14,7 @@ import { ScrollView, View } from "react-native";
 
 export default function PostScreen() {
   const { id } = useLocalSearchParams();
-
+  const { t } = useI18n();
   const { snackBar, setSnackBar } = useSnackBar();
 
   const {
@@ -38,14 +39,14 @@ export default function PostScreen() {
       setSnackBar({
         ...snackBar,
         visible: true,
-        title: "Error",
+        title: t("common.error"),
         type: "error",
         message: post_error.message,
       });
     } else {
       return is_post_error ? (
         <View style={[tailwindClasses("p-3 mb-3 ")]}>
-          <Text>Post cannot be displayed.</Text>
+          <Text>{t("posts.display_error")}</Text>
         </View>
       ) : (
         <View style={tailwindClasses("container")}>
@@ -55,6 +56,7 @@ export default function PostScreen() {
             actions={true}
             isFetching={is_fetching_post}
             post={post?.data}
+            recordWatchForPost
           />
         </View>
       );
@@ -63,9 +65,10 @@ export default function PostScreen() {
     is_fetching_post,
     is_post_error,
     post,
-    snackBar,
     post_error,
     setSnackBar,
+    snackBar,
+    t,
   ]);
 
   return <ScrollView>{Post}</ScrollView>;

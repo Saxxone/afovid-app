@@ -1,26 +1,23 @@
 {
   "expo": {
-    "name": "Bree",
-    "slug": "bree-app",
-    "description": "Bree Social is social media that's healthy and non-toxic. Social media that is the best of us for us. Bree is freedom to express yourself in the most authentic way. Be Free",
+    "name": "afovid",
+    "slug": "afovid-app",
+    "description": "afovid Social is social media that's healthy and non-toxic. Social media that is the best of us for us. afovid is freedom to express yourself in the most authentic way. Be Free",
     "version": "0.0.1",
     "orientation": "portrait",
-    "icon": "./app_directories/assets/images/bree.png",
+    "icon": "./app_directories/assets/images/afovid.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "platforms": [
-      "android",
-      "ios"
-    ],
+    "platforms": ["android", "ios"],
     "notification": {
-      "icon": "./app_directories/assets/images/bree.png",
+      "icon": "./app_directories/assets/images/afovid.png",
       "color": "#6366f1",
       "iosDisplayInForeground": true,
       "androidMode": "default"
     },
     "splash": {
-      "image": "./app_directories/assets/images/bree.png",
+      "image": "./app_directories/assets/images/afovid.png",
       "resizeMode": "contain",
       "backgroundColor": "#1f2937"
     },
@@ -30,33 +27,33 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "social.bree.app"
+      "bundleIdentifier": "social.afovid.app"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./app_directories/assets/images/bree.png",
+        "foregroundImage": "./app_directories/assets/images/afovid.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.anonymous.breeapp"
+      "package": "com.anonymous.afovidapp"
     },
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./app_directories/assets/images/bree.png"
+      "favicon": "./app_directories/assets/images/afovid.png"
     },
     "plugins": [
       [
         "expo-secure-store",
         {
           "configureAndroidBackup": true,
-          "faceIDPermission": "Allow Bree to access your Face ID biometric data."
+          "faceIDPermission": "Allow afovid to access your Face ID biometric data."
         }
       ],
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./app_directories/assets/images/bree.png",
+          "image": "./app_directories/assets/images/afovid.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
@@ -70,7 +67,15 @@
         }
       ],
       "expo-localization",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./app_directories/assets/images/afovid.png",
+          "color": "#6366f1",
+          "sounds": []
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

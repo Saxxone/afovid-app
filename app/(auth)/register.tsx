@@ -5,19 +5,21 @@ import FormInput from "@/app_directories/components/form/FormInput";
 import api_routes from "@/app_directories/constants/ApiRoutes";
 import { app_routes } from "@/app_directories/constants/AppRoutes";
 import { primary } from "@/app_directories/constants/Colors";
+import { useI18n } from "@/app_directories/context/I18nProvider";
 import { useSnackBar } from "@/app_directories/context/SnackBarProvider";
 import { ApiConnectService } from "@/app_directories/services/ApiConnectService";
 import tailwindClasses from "@/app_directories/services/ClassTransformer";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "expo-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { View } from "react-native";
 import { ValidationRule } from "@/app_directories/hooks/useValidation";
 import { FetchMethod } from "@/app_directories/types/types";
 
 export default function Login() {
+  const { t } = useI18n();
   const { snackBar, setSnackBar } = useSnackBar();
-  const [email, setEmail] = useState("");
+  const [usernameOrEmail, setUsernameOrEmail] = useState("");
   const [password, setPassword] = useState("");
   const [toggled, setToggled] = useState(true);
   const [inputErrors, setInputErrors] = useState<Record<string, string> | null>(
@@ -29,8 +31,8 @@ export default function Login() {
   };
 
   const validateLogin = () => {
-    if (!email || !password) {
-      setInputErrors({ login: "Username and password are required." });
+    if (!usernameOrEmail || !password) {
+      setInputErrors({ login: t("login.required_fields") });
       return false;
     }
     setInputErrors(null);
@@ -38,10 +40,10 @@ export default function Login() {
   };
 
   const { error, refetch } = useQuery({
-    queryKey: ["login", email, password],
+    queryKey: ["login", usernameOrEmail, password],
     queryFn: async () => {
       const data = {
-        email: email.trim(),
+        usernameOrEmail: usernameOrEmail.trim(),
         password: password.trim(),
       };
 
@@ -71,17 +73,17 @@ export default function Login() {
         setSnackBar({
           ...snackBar,
           visible: true,
-          title: "Error",
+          title: t("common.error"),
           type: "error",
-          message: error.message || "Login failed. Please try again.",
+          message: error.message || t("login.login_failed"),
         });
       } else {
         setSnackBar({
           ...snackBar,
           visible: true,
-          title: "Error",
+          title: t("common.error"),
           type: "error",
-          message: "Login failed. Please try again.",
+          message: t("login.login_failed"),
         });
       }
     }
@@ -91,40 +93,45 @@ export default function Login() {
     setToggled(!toggled);
   }
 
-  const validationRules: Record<string, ValidationRule[]> = {
-    password: [
-      { type: "required", message: "Password is required." },
-      {
-        type: "min",
-        value: 4,
-        message: "Password must be at least 4 characters.",
-      },
-    ],
-    username: [{ type: "required", message: "Username is required." }],
-  };
+  const validationRules: Record<string, ValidationRule[]> = useMemo(
+    () => ({
+      password: [
+        { type: "required", message: t("login.validation_password_required") },
+        {
+          type: "min",
+          value: 4,
+          message: t("login.validation_password_min"),
+        },
+      ],
+      username: [
+        { type: "required", message: t("login.validation_username_required") },
+      ],
+    }),
+    [t],
+  );
 
   return (
     <View style={tailwindClasses("container")}>
       <SpacerY size="lg" />
       <Text style={tailwindClasses("text-3xl font-bold")}>
-        Login your account
+        {t("login.welcome")}
       </Text>
 
       <SpacerY size="xxs" />
 
       <FormInput
-        placeholder="Enter your email or username"
-        value={email}
+        placeholder={t("login.email_username")}
+        value={usernameOrEmail}
         validationRules={validationRules.username}
         autoComplete="username"
-        keyboardType="email-address"
-        inputMode="email"
-        onChangeText={setEmail}
+        keyboardType="default"
+        inputMode="text"
+        onChangeText={setUsernameOrEmail}
         prependIcon="person-outline"
         onValidationError={handleValidationError}
       />
       <FormInput
-        placeholder="Password"
+        placeholder={t("login.password")}
         validationRules={validationRules.password}
         value={password}
         autoComplete="password"
@@ -139,14 +146,16 @@ export default function Login() {
 
       <View style={tailwindClasses("justify-end flex-row w-full")}>
         <Link href={app_routes.auth.forgot_password}>
-          <Text style={tailwindClasses("self-end")}>Forgot password?</Text>
+          <Text style={tailwindClasses("self-end")}>
+            {t("login.forgot_password")}
+          </Text>
         </Link>
       </View>
 
       <SpacerY size="xxs" />
 
       <AppButton onPress={HandleSignIn} theme="primary">
-        Login
+        {t("login.login")}
       </AppButton>
 
       <View>
@@ -161,8 +170,8 @@ export default function Login() {
 
       <View style={tailwindClasses("flex-row justify-center w-full")}>
         <Link href={app_routes.auth.register}>
-          <Text>Create new account?</Text>
-          <Text style={{ color: primary }}> Sign up</Text>
+          <Text>{t("login.create_account")}</Text>
+          <Text style={{ color: primary }}> {t("login.sign_up")}</Text>
         </Link>
       </View>
     </View>
