@@ -18,6 +18,7 @@ import { registerPushAfterAuth } from "@/app_directories/services/pushRegistrati
 import tailwindClasses from "@/app_directories/services/ClassTransformer";
 import { FetchMethod } from "@/app_directories/types/types";
 import { User } from "@/app_directories/types/user";
+import GoogleAuthButton from "@/app_directories/components/auth/GoogleAuthButton";
 import { useQuery } from "@tanstack/react-query";
 import { Link, router } from "expo-router";
 import { useMemo, useState } from "react";
@@ -191,6 +192,8 @@ export default function Login() {
           <Text style={{ color: primary }}> {t("login.sign_up")}</Text>
         </Link>
       </View>
+
+      <GoogleAuthButton mode="signin" />
     </View>
   );
 }

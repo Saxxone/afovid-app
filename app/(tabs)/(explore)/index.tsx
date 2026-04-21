@@ -10,6 +10,7 @@ import { Post, postContainsVideo } from "@/app_directories/types/post";
 import { FetchMethod } from "@/app_directories/types/types";
 import { FlashList } from "@shopify/flash-list";
 import { useInfiniteQuery } from "@tanstack/react-query";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -38,8 +39,20 @@ function postCreatedAtSortKey(post: Post): number {
 
 export default function ExploreSearchScreen() {
   const { t } = useI18n();
-  const [search, setSearch] = useState("");
+  const router = useRouter();
+  const params = useLocalSearchParams<{ q?: string | string[] }>();
+  const qParam = Array.isArray(params.q) ? params.q[0] : params.q;
+
+  const [search, setSearch] = useState(() =>
+    qParam ? qParam.replace(/\+/g, " ") : "",
+  );
   const [debouncedQ, setDebouncedQ] = useState("");
+
+  useEffect(() => {
+    if (qParam == null) return;
+    const decoded = qParam.replace(/\+/g, " ");
+    setSearch((prev) => (prev === decoded ? prev : decoded));
+  }, [qParam]);
 
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -47,6 +60,15 @@ export default function ExploreSearchScreen() {
     }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(handle);
   }, [search]);
+
+  useEffect(() => {
+    router.setParams(debouncedQ ? { q: debouncedQ } : { q: "" });
+  }, [debouncedQ, router]);
+
+  const commitSearchToUrl = useCallback(() => {
+    const norm = normalizeSearchForApi(search);
+    router.setParams(norm ? { q: norm } : { q: "" });
+  }, [router, search]);
 
   const {
     data,
@@ -178,6 +200,8 @@ export default function ExploreSearchScreen() {
         <FormInput
           value={search}
           onChangeText={setSearch}
+          onSubmitEditing={commitSearchToUrl}
+          returnKeyType="search"
           placeholder={t("explore.placeholder")}
           validationType="none"
         />

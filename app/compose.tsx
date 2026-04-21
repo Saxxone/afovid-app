@@ -1,3 +1,4 @@
+import MediaUploadProgressModal from "@/app_directories/components/app/MediaUploadProgressModal";
 import Button from "@/app_directories/components/form/Button";
 import LongPostBuilder from "@/app_directories/components/post/LongPostBuilder";
 import PostDisplay from "@/app_directories/components/post/PostDisplay";
@@ -5,28 +6,44 @@ import SelectPostType from "@/app_directories/components/post/SelectPostType";
 import ShortPostBuilder from "@/app_directories/components/post/ShortPostBuilder";
 import api_routes from "@/app_directories/constants/ApiRoutes";
 import { app_routes } from "@/app_directories/constants/AppRoutes";
+import { useI18n } from "@/app_directories/context/I18nProvider";
 import { useSnackBar } from "@/app_directories/context/SnackBarProvider";
 import { ApiConnectService } from "@/app_directories/services/ApiConnectService";
 import tailwindClasses from "@/app_directories/services/ClassTransformer";
 import { LongPostBlock, Post, PostType } from "@/app_directories/types/post";
 import { FetchMethod } from "@/app_directories/types/types";
 import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, View } from "react-native";
 
 export default function Compose() {
-  const { id, is_comment } = useLocalSearchParams();
+  const params = useLocalSearchParams<{
+    id?: string | string[];
+    is_comment?: string | string[];
+    flow?: string | string[];
+  }>();
+  const id = typeof params.id === "string" ? params.id : params.id?.[0];
+  const is_comment = params.is_comment;
+  const flowParam =
+    typeof params.flow === "string" ? params.flow : params.flow?.[0];
+  const isVideoCompose = flowParam === "video" && !is_comment;
+
+  const { t } = useI18n();
+  const navigation = useNavigation();
   const { snackBar, setSnackBar } = useSnackBar();
   const [post, setPost] = useState<Partial<Post>>({
-    parentId: id as string,
+    parentId: id ?? "",
     text: "",
     media: [],
-    type: "SHORT",
+    type: isVideoCompose ? "LONG" : "SHORT",
   });
   const [isPosting, setIsPosting] = useState(false);
-  const [postType, setPostType] = useState<PostType>("SHORT");
+  const [postType, setPostType] = useState<PostType>(
+    isVideoCompose ? "LONG" : "SHORT",
+  );
   const [postCreationType, setPostCreationType] = useState<"draft" | "publish">(
     "publish",
   );
@@ -34,12 +51,14 @@ export default function Compose() {
   const [inputErrors, setInputErrors] = useState<Record<string, string> | null>(
     null,
   );
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const uploadTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { isFetching: is_fetching_parent, data: parent_post } = useQuery({
     queryKey: ["post"],
     queryFn: async () => {
       return await ApiConnectService<Post>({
-        url: id && api_routes.posts.getPostById(id as string),
+        url: id ? api_routes.posts.getPostById(id) : "",
         method: FetchMethod.GET,
       });
     },
@@ -72,8 +91,18 @@ export default function Compose() {
     setInputErrors(errors);
   };
 
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      title: isVideoCompose ? t("posts.upload_video") : t("compose.page_title"),
+    });
+    return () => {
+      navigation.setOptions({ headerShown: false });
+    };
+  }, [navigation, isVideoCompose, t]);
+
   function setLongPost(data: LongPostBlock[]) {
-    setPost({ ...post, longPost: { content: data } });
+    setPost((prev) => ({ ...prev, longPost: { content: data } }));
   }
 
   function setShortPost(data: Partial<Post>) {
@@ -99,7 +128,20 @@ export default function Compose() {
     setIsPosting(true);
     setPostCreationType(type);
 
-    await createPost();
+    setUploadProgress(0);
+    uploadTimer.current = setInterval(() => {
+      setUploadProgress((p) => Math.min(95, (p ?? 0) + 6));
+    }, 180);
+
+    try {
+      await createPost();
+    } finally {
+      if (uploadTimer.current) {
+        clearInterval(uploadTimer.current);
+        uploadTimer.current = null;
+      }
+      setUploadProgress(null);
+    }
 
     if (is_post_error) {
       setSnackBar({
@@ -116,6 +158,10 @@ export default function Compose() {
 
   return (
     <ScrollView style={tailwindClasses("container")}>
+      <MediaUploadProgressModal
+        visible={uploadProgress !== null}
+        progress={uploadProgress ?? 0}
+      />
       {useMemo(() => {
         return (
           is_comment &&
@@ -137,9 +183,9 @@ export default function Compose() {
         );
       }, [is_comment, is_fetching_parent, parent_post?.data])}
 
-      {!is_comment && (
+      {!is_comment && !isVideoCompose ? (
         <SelectPostType type={postType} onSelected={applyPostType} />
-      )}
+      ) : null}
 
       {postType === "SHORT" ? (
         <ShortPostBuilder
@@ -153,6 +199,8 @@ export default function Compose() {
           post={post.longPost}
           setLongPost={setLongPost}
           onValidationError={handleValidationError}
+          singlePage={isVideoCompose}
+          videoOnly={isVideoCompose}
         />
       )}
 
@@ -167,7 +215,7 @@ export default function Compose() {
             className="btn-primary-outline btn-md rounded-lg !px-8 text-white"
             onPress={() => attemptCreatePost("draft")}
           >
-            {"Draft"}
+            {t("posts.draft")}
           </Button>
         )}
         <Button
@@ -175,7 +223,7 @@ export default function Compose() {
           className="btn-primary btn-md font-regular rounded-lg !px-8 text-white"
           onPress={() => attemptCreatePost("publish")}
         >
-          {is_comment ? "Reply" : "Post"}
+          {is_comment ? t("posts.reply") : t("posts.publish")}
         </Button>
       </View>
     </ScrollView>

@@ -161,6 +161,32 @@ function LayoutContents() {
             }}
           />
           <Stack.Screen
+            name="coins/success"
+            options={{
+              headerShown: false,
+              title: "Coins",
+            }}
+          />
+          <Stack.Screen
+            name="coins/cancel"
+            options={{
+              headerShown: false,
+              title: "Coins",
+            }}
+          />
+          <Stack.Screen
+            name="legal/privacy"
+            options={{
+              title: "Privacy",
+            }}
+          />
+          <Stack.Screen
+            name="legal/tos"
+            options={{
+              title: "Terms",
+            }}
+          />
+          <Stack.Screen
             name="(profile)"
             options={{
               headerShown: false,

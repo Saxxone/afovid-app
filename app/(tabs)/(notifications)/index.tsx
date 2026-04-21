@@ -25,6 +25,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useNavigation, useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useLayoutEffect, useMemo } from "react";
 import {
   ActivityIndicator,
@@ -109,6 +110,16 @@ export default function NotificationsScreen() {
       );
     },
   });
+
+  const markAllRead = markAllMutation.mutate;
+
+  useFocusEffect(
+    useCallback(() => {
+      if (session) {
+        markAllRead();
+      }
+    }, [session, markAllRead]),
+  );
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {

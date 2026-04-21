@@ -1,6 +1,23 @@
+import { install } from "react-native-quick-crypto";
+
 const AES_GCM_IV_LENGTH = 12;
 
-const subtle = globalThis.crypto.subtle;
+function ensureWebCrypto(): Crypto {
+  if (globalThis.crypto?.subtle) {
+    return globalThis.crypto;
+  }
+  install();
+  if (!globalThis.crypto?.subtle) {
+    throw new Error(
+      "Web Crypto API (subtle) is not available. Ensure react-native-quick-crypto is installed and linked.",
+    );
+  }
+  return globalThis.crypto;
+}
+
+function getSubtle(): SubtleCrypto {
+  return ensureWebCrypto().subtle;
+}
 
 function isBase64(str: string): boolean {
   if (!str || str.trim() === "") return false;
@@ -38,6 +55,7 @@ async function rsaEncrypt(
   data: BufferSource,
   publicJwk: JsonWebKey,
 ): Promise<ArrayBuffer> {
+  const subtle = getSubtle();
   const imported = await subtle.importKey(
     "jwk",
     publicJwk,
@@ -55,6 +73,7 @@ async function rsaDecrypt(
   privateJwk: JsonWebKey,
 ): Promise<ArrayBuffer | null> {
   try {
+    const subtle = getSubtle();
     const imported = await subtle.importKey(
       "jwk",
       privateJwk,
@@ -87,6 +106,7 @@ export async function generateRsaKeyPair(
   algorithm: string,
   hash: string,
 ): Promise<{ public_key: JsonWebKey; private_key: JsonWebKey }> {
+  const subtle = getSubtle();
   const keyPair = await subtle.generateKey(
     {
       name: algorithm,
@@ -122,7 +142,9 @@ export async function encryptChatPayloadHybrid({
   if (!sender_public_key || !receiver_public_key || !message) return null;
 
   try {
-    const iv = crypto.getRandomValues(new Uint8Array(AES_GCM_IV_LENGTH));
+    const webCrypto = ensureWebCrypto();
+    const iv = webCrypto.getRandomValues(new Uint8Array(AES_GCM_IV_LENGTH));
+    const subtle = webCrypto.subtle;
     const aesKey = await subtle.generateKey(
       { name: "AES-GCM", length: 256 },
       true,
@@ -182,6 +204,7 @@ export async function decryptChatBody({
       const aesRaw = await rsaDecrypt(algorithm, hash, wrappedKey, private_key);
       if (!aesRaw) return null;
 
+      const subtle = getSubtle();
       const aesKey = await subtle.importKey(
         "raw",
         aesRaw,

@@ -23,9 +23,15 @@ interface Props {
   readonly post: Partial<LongPost> | null | undefined;
   readonly setLongPost: (data: LongPostBlock[]) => void;
   readonly onValidationError: (errors: Record<string, string> | null) => void;
+  /** Hide multi-page controls; one slide only (video compose). */
+  readonly singlePage?: boolean;
+  /** Restrict picker to videos only. */
+  readonly videoOnly?: boolean;
 }
 
 const LongPostBuilder = memo(({ ...props }: Props) => {
+  const singlePage = props.singlePage ?? false;
+  const videoOnly = props.videoOnly ?? false;
   const { snackBar, setSnackBar } = useSnackBar();
   const [placeholderFiles, setPlaceholderFiles] = useState<
     ImagePicker.ImagePickerAsset[][]
@@ -92,6 +98,7 @@ const LongPostBuilder = memo(({ ...props }: Props) => {
   const [currentPage, setCurrentPage] = useState(0);
 
   function addPage() {
+    if (singlePage) return;
     if (contents.length < 7) {
       setContents([...contents, { text: "", media: [] }]);
     }
@@ -192,7 +199,7 @@ const LongPostBuilder = memo(({ ...props }: Props) => {
         style={tailwindClasses("flex flex-row justify-between items-center")}
       >
         <View style={tailwindClasses("h-7 w-7")}>
-          {contents.length > 1 ? (
+          {contents.length > 1 && !singlePage ? (
             <Button
               className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-900 px-0 py-0"
               onPress={removePage}
@@ -216,7 +223,7 @@ const LongPostBuilder = memo(({ ...props }: Props) => {
         </View>
 
         <View style={tailwindClasses("w-6 mr-2")}>
-          {contents.length < 7 ? (
+          {!singlePage && contents.length < 7 ? (
             <AntDesign
               name="plussquare"
               size={24}
@@ -251,6 +258,7 @@ const LongPostBuilder = memo(({ ...props }: Props) => {
                 onSelected={(media) => setPostMedia(media, index)}
                 maxFiles={1}
                 ratio={[5, 3]}
+                pickerMediaTypes={videoOnly ? ["videos"] : undefined}
                 validationRules={validation_rules.media}
                 onValidationError={handleValidationError}
                 className="text-main mb-4 flex h-56 flex-row items-center justify-center rounded-lg border border-gray-600 text-center"

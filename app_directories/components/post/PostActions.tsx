@@ -81,7 +81,7 @@ const PostActions = memo(({ post, className }: Props) => {
 
   function comment() {
     router.push({
-      pathname: app_routes.post.compose,
+      pathname: app_routes.post.compose.post,
       params: { id: post.id, is_comment: 1 },
     });
   }

@@ -1,13 +1,16 @@
-import FloatingActionButton from "@/app_directories/components/app/FloatingActionButton";
+import HomeComposeSpeedDial from "@/app_directories/components/app/HomeComposeSpeedDial";
 import Text from "@/app_directories/components/app/Text";
 import PostDisplay from "@/app_directories/components/post/PostDisplay";
 import api_routes from "@/app_directories/constants/ApiRoutes";
-import { app_routes } from "@/app_directories/constants/AppRoutes";
 import { violet_500 } from "@/app_directories/constants/Colors";
 import { useI18n } from "@/app_directories/context/I18nProvider";
 import { ApiConnectService } from "@/app_directories/services/ApiConnectService";
 import tailwindClasses from "@/app_directories/services/ClassTransformer";
-import { Post, postContainsVideo } from "@/app_directories/types/post";
+import {
+  Post,
+  postContainsVideo,
+  postFeedTrailerAutoplay,
+} from "@/app_directories/types/post";
 import { FetchMethod } from "@/app_directories/types/types";
 import { FlashList } from "@shopify/flash-list";
 import { useInfiniteQuery } from "@tanstack/react-query";
@@ -122,6 +125,7 @@ export default function HomeScreen() {
               isFetching={isFetching && !isFetchingNextPage}
               emphasizeVideo={postContainsVideo(item)}
               isFeedVideoActive={activePostId === item?.id}
+              feedTrailerAutoplay={postFeedTrailerAutoplay(item)}
             />
           )}
           refreshControl={
@@ -140,10 +144,7 @@ export default function HomeScreen() {
           ListFooterComponent={renderFooter}
         />
       </View>
-      <FloatingActionButton
-        to={app_routes.post.compose}
-        icon="pencil-outline"
-      />
+      <HomeComposeSpeedDial />
     </>
   );
 }

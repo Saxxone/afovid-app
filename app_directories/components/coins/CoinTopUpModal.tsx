@@ -112,7 +112,7 @@ export default function CoinTopUpModal({ visible, onClose }: Props) {
       const res = await ApiConnectService<CoinStripeCheckoutResponse>({
         url: api_routes.coins.checkoutStripe,
         method: FetchMethod.POST,
-        body: { packageId: selectedId },
+        body: { packageId: selectedId, client: "native" },
       });
       if (res.error || !res.data?.url) {
         setSnackBar({

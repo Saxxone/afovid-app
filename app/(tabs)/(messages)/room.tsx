@@ -1,6 +1,8 @@
 import Text from "@/app_directories/components/app/Text";
 import AppButton from "@/app_directories/components/form/Button";
 import FormInput from "@/app_directories/components/form/FormInput";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import api_routes from "@/app_directories/constants/ApiRoutes";
 import { useI18n } from "@/app_directories/context/I18nProvider";
 import { useSnackBar } from "@/app_directories/context/SnackBarProvider";
@@ -17,6 +19,8 @@ import {
   ApiConnectService,
   getTokens,
 } from "@/app_directories/services/ApiConnectService";
+import { uploadFilesWithProgress } from "@/app_directories/services/uploadWithProgress";
+import { resolvePlaybackUrl } from "@/app_directories/utils/playbackUrl";
 import tailwindClasses from "@/app_directories/services/ClassTransformer";
 import type { Chat, Room } from "@/app_directories/types/chat";
 import type { User } from "@/app_directories/types/user";
@@ -38,8 +42,10 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 const RSA_ALG = "RSA-OAEP";
 const RSA_HASH = "SHA-256";
@@ -65,14 +71,24 @@ function parsePublicKeyString(raw: User["publicKey"]): string | null {
   return JSON.stringify(raw);
 }
 
+function isLikelyMediaUrl(text: string): boolean {
+  const t = text.trim();
+  if (!/^https?:\/\//i.test(t)) return false;
+  return (
+    /\.(png|jpe?g|gif|webp|mp4|webm)(\?|$)/i.test(t) || t.includes("/file/")
+  );
+}
+
 function ChatLine({
   item,
   selfId,
   privateJwk,
+  accessToken,
 }: {
   item: Chat;
   selfId: string;
   privateJwk: JsonWebKey | null;
+  accessToken: string;
 }) {
   const [lineText, setLineText] = useState("…");
   const from =
@@ -107,19 +123,47 @@ function ChatLine({
     };
   }, [item, privateJwk, selfId]);
 
+  const plain = lineText !== "…" && lineText !== "—" ? lineText.trim() : "";
+  const showRichMedia = !!plain && isLikelyMediaUrl(plain) && !!accessToken;
+  const mediaUri = showRichMedia
+    ? resolvePlaybackUrl(plain, accessToken, { requiresAuth: true })
+    : "";
+  const isVideo =
+    /\.(mp4|webm)(\?|$)/i.test(plain) || plain.toLowerCase().includes("video");
+
   return (
     <View
       style={tailwindClasses(
         `mb-2 max-w-[85%] rounded-lg px-3 py-2 ${mine ? "self-end bg-indigo-600" : "self-start bg-gray-200 dark:bg-gray-600"}`,
       )}
     >
-      <Text
-        style={tailwindClasses(
-          mine ? "text-white" : "text-gray-900 dark:text-white",
-        )}
-      >
-        {lineText}
-      </Text>
+      {mediaUri && !isVideo ? (
+        <Image
+          source={{ uri: mediaUri }}
+          style={{ width: 220, height: 220, borderRadius: 8 }}
+          contentFit="cover"
+        />
+      ) : null}
+      {mediaUri && isVideo ? (
+        <Text
+          style={tailwindClasses(
+            mine
+              ? "text-white text-sm"
+              : "text-gray-900 dark:text-white text-sm",
+          )}
+        >
+          Video attachment: {plain}
+        </Text>
+      ) : null}
+      {!mediaUri ? (
+        <Text
+          style={tailwindClasses(
+            mine ? "text-white" : "text-gray-900 dark:text-white",
+          )}
+        >
+          {lineText}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -151,6 +195,7 @@ export default function MessageRoomScreen() {
   const [me, setMe] = useState<User | null>(null);
   const [privateJwk, setPrivateJwk] = useState<JsonWebKey | null>(null);
   const [keyBusy, setKeyBusy] = useState(false);
+  const [accessToken, setAccessToken] = useState("");
 
   const socketRef = useRef<Socket | null>(null);
 
@@ -201,6 +246,7 @@ export default function MessageRoomScreen() {
       setLoading(false);
       return;
     }
+    setAccessToken(access_token);
     const uid = getUserIdFromAccessToken(access_token);
     setSelfId(uid);
     if (!uid) {
@@ -361,6 +407,47 @@ export default function MessageRoomScreen() {
     setDraft("");
   }, [draft, me, privateJwk, receiver, room?.id, selfId, showSnack, t]);
 
+  const pickAndAttachImage = useCallback(async () => {
+    if (!canEncrypt || !receiver || !room?.id) return;
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      showSnack({
+        type: "error",
+        title: t("common.error"),
+        message: "Photo library permission is required.",
+      });
+      return;
+    }
+    const pick = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.85,
+    });
+    if (pick.canceled || !pick.assets[0]) return;
+    const a = pick.assets[0];
+    try {
+      const ids = await uploadFilesWithProgress(
+        [
+          {
+            uri: a.uri,
+            name: a.fileName ?? "photo.jpg",
+            type: a.mimeType ?? "image/jpeg",
+          },
+        ],
+        () => {},
+      );
+      const id = ids[0];
+      if (id) {
+        setDraft(api_routes.files.get(id));
+      }
+    } catch (e) {
+      showSnack({
+        type: "error",
+        title: t("common.error"),
+        message: e instanceof Error ? e.message : "Upload failed",
+      });
+    }
+  }, [canEncrypt, receiver, room?.id, showSnack, t]);
+
   if (loading || !selfId) {
     return (
       <View style={tailwindClasses("flex-1 items-center justify-center")}>
@@ -387,7 +474,13 @@ export default function MessageRoomScreen() {
       keyboardVerticalOffset={80}
     >
       {needsKeys ? (
-        <View style={tailwindClasses("p-4")}>
+        <View style={tailwindClasses("flex-1 p-6 justify-center")}>
+          <Text
+            className="text-lg font-semibold text-center mb-2"
+            style={tailwindClasses("text-gray-900 dark:text-white")}
+          >
+            Complete account setup to continue chatting
+          </Text>
           <Text
             style={tailwindClasses(
               "mb-3 text-center text-gray-600 dark:text-gray-300",
@@ -402,42 +495,60 @@ export default function MessageRoomScreen() {
             {t("chat.generate_keys")}
           </AppButton>
         </View>
-      ) : null}
+      ) : (
+        <>
+          {peerMissingKey ? (
+            <View style={tailwindClasses("p-4")}>
+              <Text style={tailwindClasses("text-center text-amber-600")}>
+                {t("chat.missing_peer_key")}
+              </Text>
+            </View>
+          ) : null}
 
-      {peerMissingKey ? (
-        <View style={tailwindClasses("p-4")}>
-          <Text style={tailwindClasses("text-center text-amber-600")}>
-            {t("chat.missing_peer_key")}
-          </Text>
-        </View>
-      ) : null}
-
-      <FlatList
-        style={tailwindClasses("flex-1 px-3")}
-        data={messages}
-        keyExtractor={(m, i) => m.id ?? `m-${i}`}
-        renderItem={({ item }) => (
-          <ChatLine item={item} selfId={selfId} privateJwk={privateJwk} />
-        )}
-      />
-
-      {canEncrypt && !peerMissingKey ? (
-        <View
-          style={tailwindClasses(
-            "border-t border-gray-200 p-2 dark:border-gray-600",
-          )}
-        >
-          <FormInput
-            placeholder={t("chat.new")}
-            value={draft}
-            onChangeText={setDraft}
-            multiline
+          <FlatList
+            style={tailwindClasses("flex-1 px-3")}
+            data={messages}
+            keyExtractor={(m, i) => m.id ?? `m-${i}`}
+            renderItem={({ item }) => (
+              <ChatLine
+                item={item}
+                selfId={selfId}
+                privateJwk={privateJwk}
+                accessToken={accessToken}
+              />
+            )}
           />
-          <AppButton onPress={() => void send()}>
-            {t("posts.publish")}
-          </AppButton>
-        </View>
-      ) : null}
+
+          {canEncrypt && !peerMissingKey ? (
+            <View
+              style={tailwindClasses(
+                "border-t border-gray-200 p-2 dark:border-gray-600",
+              )}
+            >
+              <View style={tailwindClasses("flex-row items-end gap-2")}>
+                <Pressable
+                  onPress={() => void pickAndAttachImage()}
+                  style={tailwindClasses("p-2")}
+                  accessibilityLabel="Attach image"
+                >
+                  <Ionicons name="image-outline" size={26} color="#6366f1" />
+                </Pressable>
+                <View style={tailwindClasses("flex-1")}>
+                  <FormInput
+                    placeholder={t("chat.new")}
+                    value={draft}
+                    onChangeText={setDraft}
+                    multiline
+                  />
+                </View>
+              </View>
+              <AppButton onPress={() => void send()}>
+                {t("posts.publish")}
+              </AppButton>
+            </View>
+          ) : null}
+        </>
+      )}
     </KeyboardAvoidingView>
   );
 }

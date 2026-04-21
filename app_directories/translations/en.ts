@@ -66,12 +66,18 @@ const en = {
     cannot_add_more_than_8: "Cannot add more than 8 pages",
     all_posts_must_have_media_or_text: "Each page must have a media or text",
     post_must_have_media_or_text: "Post must have media or text",
+    upload_video: "Upload video",
   },
   compose: {
     media: "Media",
     content: "Content",
     publish: "Post",
     page_title: "Compose",
+    open_menu_aria: "Open create menu",
+    close_menu_aria: "Close create menu",
+    create_video_aria: "New video post",
+    create_post_aria: "New post",
+    speed_dial_actions: "Create post or video",
   },
   profile: {
     edit: "Edit Profile",

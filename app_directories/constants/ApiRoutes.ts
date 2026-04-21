@@ -32,6 +32,7 @@ const api_routes = {
   },
   files: {
     upload: api_url + "/file/upload",
+    get: (id: string) => `${api_url}/file/${encodeURIComponent(id)}`,
   },
   notifications: {
     get: api_url + "/notifications",

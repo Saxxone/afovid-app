@@ -3,6 +3,7 @@ import { useSnackBar } from "@/app_directories/context/SnackBarProvider";
 import tailwindClasses from "@/app_directories/services/ClassTransformer";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import type { MediaType } from "expo-image-picker";
 import React, { useCallback, useMemo, useState } from "react";
 import { Alert, Pressable, View } from "react-native";
 import { ValidationRule, useValidation } from "../../hooks/useValidation";
@@ -20,6 +21,8 @@ interface Props {
   readonly ratio?: [number, number];
   readonly validationRules?: ValidationRule[];
   readonly onValidationError?: (errors: Record<string, string> | null) => void;
+  /** Defaults to images and videos. Use `["videos"]` for video-only compose. */
+  readonly pickerMediaTypes?: MediaType[];
 }
 
 export default function FilePicker({ onSelected, ...props }: Props) {
@@ -36,13 +39,15 @@ export default function FilePicker({ onSelected, ...props }: Props) {
       return;
     }
 
+    const mediaTypes = props.pickerMediaTypes ?? ["images", "videos"];
+
     const result = await ImagePicker.launchImageLibraryAsync({
       ...(props.maxFiles &&
         props.maxFiles > 1 && {
           allowsMultipleSelection: true,
         }),
       selectionLimit: props.maxFiles ?? 1,
-      mediaTypes: ["images", "videos"],
+      mediaTypes,
       ...(props.maxFiles === 1 && {
         allowsEditing: false,
       }),

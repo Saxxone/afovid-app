@@ -1,7 +1,9 @@
 export const app_routes: Record<string, any> = {
   post: {
     home: "/(tabs)/(home)",
-    compose: "/compose",
+    compose: {
+      post: "/compose",
+    },
     edit: (id: string) => `/(tabs)/(home)/post/${id}/edit`,
     view: (id: string) => `/(tabs)/(home)/(post)/${id}`,
     view_media: (id: string) => `/(tabs)/(home)/(post)/media/${id}`,
@@ -19,6 +21,10 @@ export const app_routes: Record<string, any> = {
     login: "/(auth)/login",
     register: "/(auth)/register",
     forgot_password: "/(auth)forgot-password",
+  },
+  legal: {
+    privacy: "/legal/privacy",
+    tos: "/legal/tos",
   },
   messages: {
     root: "/(tabs)/(messages)",

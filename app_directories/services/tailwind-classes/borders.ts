@@ -18,7 +18,7 @@ import {
 
 const borders = {
   "rounded-lg": { borderRadius: rounded_lg },
-  "rounded-full": { borderRadius: "100%" },
+  "rounded-full": { borderRadius: 9999 },
   border: { borderWidth: 1, borderStyle: "solid" },
   "border-b": { borderBottomWidth: 1, borderBottomStyle: "solid" },
   "border-t": { borderTopWidth: 1, borderTopStyle: "solid" },
