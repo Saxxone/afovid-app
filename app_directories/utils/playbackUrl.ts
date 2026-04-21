@@ -1,5 +1,9 @@
 import { resolveMediaSrc } from "@/app_directories/utils/mediaUrl";
 
+/**
+ * Prefer API `mediaPlayback` when present. With R2 + CDN, `playback` may be an HLS
+ * `.m3u8` URL; `expo-video` (`VideoViewer`) supports that on iOS and Android.
+ */
 export function pickVideoPlaybackSource(
   playback: string | null | undefined,
   primary: string,
