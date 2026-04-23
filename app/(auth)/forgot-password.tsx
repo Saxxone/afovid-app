@@ -1,178 +1,47 @@
 import SpacerY from "@/app_directories/components/app/SpacerY";
 import Text from "@/app_directories/components/app/Text";
 import AppButton from "@/app_directories/components/form/Button";
-import FormInput from "@/app_directories/components/form/FormInput";
-import api_routes from "@/app_directories/constants/ApiRoutes";
 import { app_routes } from "@/app_directories/constants/AppRoutes";
-import { primary } from "@/app_directories/constants/Colors";
 import { useI18n } from "@/app_directories/context/I18nProvider";
-import { useSnackBar } from "@/app_directories/context/SnackBarProvider";
-import { ValidationRule } from "@/app_directories/hooks/useValidation";
-import { ApiConnectService } from "@/app_directories/services/ApiConnectService";
 import tailwindClasses from "@/app_directories/services/ClassTransformer";
-import { FetchMethod } from "@/app_directories/types/types";
-import { useQuery } from "@tanstack/react-query";
-import { Link } from "expo-router";
-import { useMemo, useState } from "react";
+import { Link, router } from "expo-router";
 import { View } from "react-native";
 
-export default function Login() {
+// Stub screen: backend has no password-reset endpoint yet. We render a
+// "contact support" message so the deep link is not broken instead of the
+// previous copy-pasted login form that silently posted to /auth/login.
+export default function ForgotPassword() {
   const { t } = useI18n();
-  const { snackBar, setSnackBar } = useSnackBar();
-
-  const [usernameOrEmail, setUsernameOrEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [toggled, setToggled] = useState(true);
-  const [inputErrors, setInputErrors] = useState<Record<string, string> | null>(
-    null,
-  );
-
-  const handleValidationError = (errors: Record<string, string> | null) => {
-    setInputErrors(errors);
-  };
-
-  const validateLogin = () => {
-    if (!usernameOrEmail || !password) {
-      setInputErrors({ login: t("login.required_fields") });
-      return false;
-    }
-    setInputErrors(null);
-    return true;
-  };
-
-  const { error, refetch } = useQuery({
-    queryKey: ["login", usernameOrEmail, password],
-    queryFn: async () => {
-      const data = {
-        usernameOrEmail: usernameOrEmail.trim(),
-        password: password.trim(),
-      };
-
-      if (validateLogin()) {
-        return await ApiConnectService<any>({
-          url: api_routes.login,
-          method: FetchMethod.POST,
-          body: data,
-        });
-      } else {
-        return undefined;
-      }
-    },
-    enabled: false,
-    retry: false,
-  });
-
-  const HandleSignIn = async () => {
-    if (validateLogin()) {
-      const response = await refetch();
-
-      if (response.data) {
-        // // Assuming your API returns a success flag
-        // signIn(); // Call signIn only if the API call is successful
-        // router.replace(app_routes.home);
-      } else if (error) {
-        setSnackBar({
-          ...snackBar,
-          visible: true,
-          title: t("common.error"),
-          type: "error",
-          message: error.message || t("login.login_failed"),
-        });
-      } else {
-        setSnackBar({
-          ...snackBar,
-          visible: true,
-          title: t("common.error"),
-          type: "error",
-          message: t("login.login_failed"),
-        });
-      }
-    }
-  };
-
-  function togglePasswordField() {
-    setToggled(!toggled);
-  }
-
-  const validationRules: Record<string, ValidationRule[]> = useMemo(
-    () => ({
-      password: [
-        { type: "required", message: t("login.validation_password_required") },
-        {
-          type: "min",
-          value: 4,
-          message: t("login.validation_password_min"),
-        },
-      ],
-      username: [
-        { type: "required", message: t("login.validation_username_required") },
-      ],
-    }),
-    [t],
-  );
 
   return (
     <View style={tailwindClasses("container")}>
       <SpacerY size="lg" />
       <Text style={tailwindClasses("text-3xl font-bold")}>
-        {t("login.welcome")}
+        {t("login.forgot_password")}
       </Text>
 
       <SpacerY size="xxs" />
 
-      <FormInput
-        placeholder={t("login.email_username")}
-        value={usernameOrEmail}
-        validationRules={validationRules.username}
-        autoComplete="username"
-        keyboardType="default"
-        inputMode="text"
-        onChangeText={setUsernameOrEmail}
-        prependIcon="person-outline"
-        onValidationError={handleValidationError}
-      />
-      <FormInput
-        placeholder={t("login.password")}
-        validationRules={validationRules.password}
-        value={password}
-        autoComplete="password"
-        inputMode="text"
-        onChangeText={setPassword}
-        secureTextEntry={toggled}
-        prependIcon="lock-closed-outline"
-        onAppendPressed={togglePasswordField}
-        appendIcon={toggled ? "eye-outline" : "eye-off-outline"}
-        onValidationError={handleValidationError}
-      />
+      <Text>
+        Password reset is not available in-app yet. Please contact support to
+        recover your account.
+      </Text>
 
-      <View style={tailwindClasses("justify-end flex-row w-full")}>
-        <Link href={app_routes.auth.forgot_password}>
-          <Text style={tailwindClasses("self-end")}>
-            {t("login.forgot_password")}
-          </Text>
-        </Link>
-      </View>
+      <SpacerY size="sm" />
 
-      <SpacerY size="xxs" />
-
-      <AppButton onPress={HandleSignIn} theme="primary">
-        {t("login.login")}
+      <AppButton
+        theme="primary"
+        onPress={() => router.replace(app_routes.auth.login)}
+      >
+        {t("signup.sign_in")}
       </AppButton>
-
-      <View>
-        {inputErrors
-          ? Object.values(inputErrors).map((error) => (
-              <Text key={`${error}-error-message`}>{error}</Text>
-            ))
-          : null}
-      </View>
 
       <SpacerY size="xxs" />
 
       <View style={tailwindClasses("flex-row justify-center w-full")}>
         <Link href={app_routes.auth.register}>
           <Text>{t("login.create_account")}</Text>
-          <Text style={{ color: primary }}> {t("login.sign_up")}</Text>
+          <Text> {t("login.sign_up")}</Text>
         </Link>
       </View>
     </View>

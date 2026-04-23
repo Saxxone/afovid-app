@@ -55,6 +55,12 @@ Temporary Items
 .env*.local
 .env
 
+# Firebase (Android FCM) — from Firebase Console (must match app android.package, e.g. com.afovid)
+google-services.json
+
+# Firebase (iOS) — from Firebase Console for bundle social.afovid.app (if used)
+GoogleService-Info.plist
+
 # typescript
 *.tsbuildinfo
 

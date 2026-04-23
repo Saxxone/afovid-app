@@ -3,8 +3,6 @@ import Text from "@/app_directories/components/app/Text";
 import api_routes from "@/app_directories/constants/ApiRoutes";
 import { useSession } from "@/app_directories/context/AppContext";
 import { useSnackBar } from "@/app_directories/context/SnackBarProvider";
-import { generateRsaKeyPair } from "@/app_directories/crypto/chatE2ee";
-import { setStoredPrivateJwk } from "@/app_directories/crypto/securePrivateKey";
 import {
   ApiConnectService,
   saveTokens,
@@ -13,7 +11,11 @@ import { registerPushAfterAuth } from "@/app_directories/services/pushRegistrati
 import tailwindClasses from "@/app_directories/services/ClassTransformer";
 import type { User } from "@/app_directories/types/user";
 import { FetchMethod } from "@/app_directories/types/types";
-import { getUserIdFromAccessToken } from "@/app_directories/utils/jwtPayload";
+import {
+  authDebug,
+  authLogUrlPath,
+  authWarn,
+} from "@/app_directories/utils/authDebugLog";
 import { makeRedirectUri } from "expo-auth-session";
 import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
@@ -22,9 +24,6 @@ import { memo, useEffect, useMemo } from "react";
 import { ActivityIndicator, View } from "react-native";
 
 WebBrowser.maybeCompleteAuthSession();
-
-const RSA_ALG = "RSA-OAEP";
-const RSA_HASH = "SHA-256";
 
 type Mode = "signin" | "signup";
 
@@ -36,21 +35,6 @@ type AuthResponse = User & {
   access_token?: string;
   refresh_token?: string;
 };
-
-async function ensureSignupKeys(accessToken: string): Promise<void> {
-  const uid = getUserIdFromAccessToken(accessToken);
-  if (!uid) return;
-  const { public_key, private_key } = await generateRsaKeyPair(
-    RSA_ALG,
-    RSA_HASH,
-  );
-  await setStoredPrivateJwk(private_key);
-  await ApiConnectService<User>({
-    url: api_routes.users.update(uid),
-    method: FetchMethod.PUT,
-    body: { publicKey: JSON.stringify(public_key) },
-  });
-}
 
 const GoogleAuthButtonInner = memo(function GoogleAuthButtonInner({
   mode,
@@ -76,9 +60,14 @@ const GoogleAuthButtonInner = memo(function GoogleAuthButtonInner({
 
   useEffect(() => {
     async function handle() {
+      if (response?.type === "error" || response?.type === "cancel") {
+        authDebug("google:flow_finished", { type: response.type });
+        return;
+      }
       if (response?.type !== "success") return;
       const idToken = response.params?.id_token;
       if (!idToken || typeof idToken !== "string") {
+        authWarn("google:missing_id_token", { hasParams: !!response.params });
         setSnackBar({
           ...snackBar,
           visible: true,
@@ -90,12 +79,20 @@ const GoogleAuthButtonInner = memo(function GoogleAuthButtonInner({
       }
       const url =
         mode === "signin" ? api_routes.google_login : api_routes.google_signup;
+      authDebug("google:exchanging_id_token", {
+        mode,
+        path: authLogUrlPath(url),
+      });
       const res = await ApiConnectService<AuthResponse>({
         url,
         method: FetchMethod.POST,
         body: { token: idToken },
       });
       if (res.error || !res.data?.access_token) {
+        authWarn("google:backend_failed", {
+          hasData: !!res.data,
+          message: (res.error as { message?: string })?.message,
+        });
         setSnackBar({
           ...snackBar,
           visible: true,
@@ -108,13 +105,26 @@ const GoogleAuthButtonInner = memo(function GoogleAuthButtonInner({
         return;
       }
       const d = res.data;
-      await saveTokens({
-        access_token: d.access_token!,
-        refresh_token: d.refresh_token ?? "",
-      });
-      if (mode === "signup") {
-        await ensureSignupKeys(d.access_token!);
+      try {
+        await saveTokens({
+          access_token: d.access_token!,
+          refresh_token: d.refresh_token ?? "",
+        });
+      } catch (e) {
+        authWarn("google:post_token_failed", {
+          name: e instanceof Error ? e.name : "Error",
+          message: e instanceof Error ? e.message : String(e),
+        });
+        setSnackBar({
+          ...snackBar,
+          visible: true,
+          title: "Google",
+          type: "error",
+          message: "Could not complete sign-in. Try again.",
+        });
+        return;
       }
+      authDebug("google:success");
       signIn();
       void registerPushAfterAuth();
       router.replace("/(tabs)/(home)");

@@ -1,6 +1,7 @@
 const en = {
   settings: {},
   common: {
+    back: "Back",
     error: "Error",
   },
   navigation: {
@@ -120,12 +121,29 @@ const en = {
     page_title: "Chat",
     direct_message: "Direct Message",
     new: "Say something…",
-    missing_peer_key: "This user has not set up encryption yet.",
     encryption_failed: "Could not encrypt your message.",
     send_failed: "Could not send your message.",
-    setup_keys_hint:
-      "End-to-end encryption needs a key pair on this device. Generate keys to continue.",
-    generate_keys: "Generate encryption keys",
+    unreadable_on_this_device:
+      "Encrypted message — not readable on this device.",
+  },
+  security: {
+    setup_title: "Set up end-to-end encryption",
+    setup_hint:
+      "Register this device to exchange end-to-end encrypted messages. Keys never leave this device.",
+    register_device: "Register this device",
+    device_not_registered:
+      "This device is not registered for encrypted messaging yet.",
+    no_peer_devices:
+      "The other participant has no devices registered for encrypted messaging.",
+    devices_title: "Your devices",
+    devices_hint:
+      "These devices can read your direct messages. Revoke any you no longer use.",
+    revoke_device: "Revoke",
+    this_device: "This device",
+    fingerprint: "Fingerprint",
+    last_seen: "Last seen",
+    revoked: "revoked",
+    verify_fingerprint: "Verify fingerprint",
   },
   not_found: {
     title: "Oops! This screen doesn't exist.",

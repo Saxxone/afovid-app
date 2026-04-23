@@ -148,7 +148,7 @@ export default function ProfileByIdScreen() {
   const listHeader = useMemo(() => {
     if (!profileUser) return null;
     return (
-      <View style={tailwindClasses("px-3 pt-2")}>
+      <View style={tailwindClasses("pt-2")}>
         <ProfileTop user={profileUser} isSameUser={isSameUser} />
         <View style={tailwindClasses("h-4")} />
       </View>
@@ -191,7 +191,9 @@ export default function ProfileByIdScreen() {
   }
 
   return (
-    <View style={[tailwindClasses("flex-1"), { backgroundColor: pageBg }]}>
+    <View
+      style={[tailwindClasses("container flex-1"), { backgroundColor: pageBg }]}
+    >
       <FlashList
         data={posts}
         ListHeaderComponent={listHeader}
@@ -200,7 +202,7 @@ export default function ProfileByIdScreen() {
         onViewableItemsChanged={onViewableItemsChanged}
         ListEmptyComponent={
           isFetching ? null : (
-            <View style={tailwindClasses("px-3 py-8")}>
+            <View style={tailwindClasses("py-8")}>
               <Text className="text-center text-gray-500">No posts yet.</Text>
             </View>
           )

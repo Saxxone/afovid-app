@@ -1,43 +1,62 @@
 import type { User } from "./user";
 import type { DateString, MediaType } from "./types";
 
+export interface DeviceBundle {
+  id: string;
+  userId: string;
+  label: string;
+  identityKeyCurve25519: string;
+  identityKeyEd25519: string;
+  createdAt?: DateString;
+  lastSeenAt?: DateString;
+  revokedAt?: DateString | null;
+}
+
+export interface ClaimedPrekey {
+  deviceId: string;
+  identityKeyCurve25519: string;
+  identityKeyEd25519: string;
+  signedPrekey: {
+    keyId: string;
+    publicKey: string;
+    signature: string;
+    isFallback: boolean;
+  };
+}
+
+export interface ChatEnvelope {
+  id: string;
+  recipientUserId: string;
+  recipientDeviceId: string;
+  ciphertext: string;
+  messageType: 0 | 1;
+  read?: boolean;
+  deliveredAt?: DateString | null;
+}
+
 export interface Chat {
-  toUserId?: string | Partial<User>;
-  fromUserId?: string | Partial<User>;
-  createdAt: DateString | null;
-  text?: ArrayBuffer | string;
-  media: string | null | undefined;
-  mediaType?: MediaType;
-  read: boolean;
-  id?: string | null;
-  updatedAt: DateString | null;
-  deletedAt: DateString | null;
-  deletedBy?: Partial<User>;
-  deletedByMe?: boolean;
-  room?: Room;
+  id: string;
   roomId: string;
-  encryptedPayload?: string | null;
-  senderEncryptedMessage?: ArrayBuffer;
-  receiverEncryptedMessage?: ArrayBuffer;
-  userEncryptedMessages?: UserEncryptedMessage[];
+  senderUserId: string;
+  senderDeviceId: string;
+  createdAt?: DateString | null;
+  deletedAt?: DateString | null;
+  /** Envelopes visible to the calling device (at most one per chat). */
+  envelopes?: ChatEnvelope[];
+  /** UI-only: cleartext shown to the sender because Olm does not self-decrypt. */
+  localPlaintext?: string;
+  /** UI-only: media URL (non-encrypted) attached to the chat. */
+  media?: string | null;
+  mediaType?: MediaType;
 }
 
 export interface Room {
   id: string;
   participants: User[];
-  createdAt: DateString | null;
-  updatedAt: DateString | null;
+  createdAt?: DateString | null;
+  updatedAt?: DateString | null;
   chats: Chat[];
-  name: string | null | undefined;
-  media: string | null | undefined;
+  name?: string | null;
+  media?: string | null;
   mediaType?: MediaType;
-}
-
-export interface UserEncryptedMessage {
-  id: string;
-  chatId: string;
-  userId: string;
-  encryptedMessage: string;
-  createdAt: DateString | null;
-  user: User;
 }

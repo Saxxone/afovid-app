@@ -18,8 +18,9 @@ import { registerPushAfterAuth } from "@/app_directories/services/pushRegistrati
 import tailwindClasses from "@/app_directories/services/ClassTransformer";
 import { FetchMethod } from "@/app_directories/types/types";
 import { User } from "@/app_directories/types/user";
+import { authDebug, authWarn } from "@/app_directories/utils/authDebugLog";
 import GoogleAuthButton from "@/app_directories/components/auth/GoogleAuthButton";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Link, router } from "expo-router";
 import { useMemo, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
@@ -48,58 +49,115 @@ export default function Login() {
     return true;
   };
 
-  const { isFetching, error, refetch } = useQuery({
-    queryKey: ["login", usernameOrEmail, password],
-    queryFn: async () => {
-      const data = {
-        usernameOrEmail: usernameOrEmail.trim(),
-        password: password.trim(),
-      };
-
-      if (validateLogin()) {
-        const res = await ApiConnectService<User>({
-          url: api_routes.login,
-          method: FetchMethod.POST,
-          body: data,
-        });
-        return res;
-      } else {
-        return undefined;
+  // Mutation (not query) so credentials are NEVER persisted in the React Query
+  // cache. Previously this used `useQuery({ queryKey: ["login", username, password] })`
+  // which leaked the plaintext password into the query cache key.
+  const loginMutation = useMutation({
+    mutationFn: async (input: {
+      usernameOrEmail: string;
+      password: string;
+    }) => {
+      const res = await ApiConnectService<User>({
+        url: api_routes.login,
+        method: FetchMethod.POST,
+        body: {
+          usernameOrEmail: input.usernameOrEmail.trim(),
+          password: input.password.trim(),
+        },
+      });
+      if (res.error) {
+        const msg =
+          (res.error as { message?: string })?.message ||
+          t("login.login_failed");
+        throw new Error(msg);
       }
+      if (!res.data) {
+        throw new Error(t("login.login_failed"));
+      }
+      return res.data;
     },
-    enabled: false,
-    retry: false,
   });
 
   async function handleSignIn() {
-    if (isFetching) return;
+    if (loginMutation.isPending) return;
 
-    if (validateLogin()) {
-      const response = await refetch();
-
-      if (error) {
-        setSnackBar({
-          ...snackBar,
-          visible: true,
-          title: t("common.error"),
-          type: "error",
-          message: error.message || t("login.login_failed"),
-        });
-      } else if (response.data && !response.data.error) {
-        savePassword({
-          username: usernameOrEmail.trim(),
-          password: password,
-        });
-        saveTokens({
-          access_token: response?.data?.data?.access_token as string,
-          refresh_token: response?.data?.data?.refresh_token as string,
-        });
-        signIn();
-        void registerPushAfterAuth();
-        router.replace(app_routes.post.home);
-      }
+    if (!validateLogin()) {
+      authDebug("login:aborted_after_validation");
+      return;
     }
+
+    authDebug("login:submit", {
+      identifierLen: usernameOrEmail.trim().length,
+    });
+
+    let apiBody: User;
+    try {
+      apiBody = await loginMutation.mutateAsync({
+        usernameOrEmail,
+        password,
+      });
+    } catch (err) {
+      authWarn("login:api_rejected", {
+        message: err instanceof Error ? err.message : String(err),
+      });
+      setSnackBar({
+        ...snackBar,
+        visible: true,
+        title: t("common.error"),
+        type: "error",
+        message:
+          (err instanceof Error ? err.message : null) ||
+          t("login.login_failed"),
+      });
+      return;
+    }
+
+    const accessToken = apiBody.access_token;
+    if (!accessToken) {
+      authWarn("login:missing_access_token", { hasUserId: !!apiBody.id });
+      setSnackBar({
+        ...snackBar,
+        visible: true,
+        title: t("common.error"),
+        type: "error",
+        message: t("login.login_failed"),
+      });
+      return;
+    }
+
+    const refreshToken = apiBody.refresh_token;
+    try {
+      authDebug("login:persisting_session");
+      await savePassword({
+        username: usernameOrEmail.trim(),
+        password: password,
+      });
+      await saveTokens({
+        access_token: accessToken,
+        refresh_token: refreshToken ?? null,
+      });
+    } catch (e) {
+      authWarn("login:keychain_persist_failed", {
+        name: e instanceof Error ? e.name : "Error",
+        message: e instanceof Error ? e.message : String(e),
+      });
+      setSnackBar({
+        ...snackBar,
+        visible: true,
+        title: t("common.error"),
+        type: "error",
+        message: t("login.login_failed"),
+      });
+      return;
+    }
+
+    authDebug("login:navigating_home");
+    signIn();
+    void registerPushAfterAuth();
+    router.replace(app_routes.post.home);
   }
+
+  const isPending = loginMutation.isPending;
 
   function togglePasswordField() {
     setToggled(!toggled);
@@ -140,7 +198,7 @@ export default function Login() {
         inputMode="text"
         onChangeText={setUsernameOrEmail}
         prependIcon="person-outline"
-        editable={!isFetching}
+        editable={!isPending}
         onValidationError={handleValidationError}
       />
       <FormInput
@@ -154,7 +212,7 @@ export default function Login() {
         prependIcon="lock-closed-outline"
         onAppendPressed={togglePasswordField}
         appendIcon={toggled ? "eye-outline" : "eye-off-outline"}
-        editable={!isFetching}
+        editable={!isPending}
         onValidationError={handleValidationError}
       />
 
@@ -169,7 +227,7 @@ export default function Login() {
       <SpacerY size="xxs" />
 
       <AppButton onPress={handleSignIn} theme="primary">
-        {isFetching ? (
+        {isPending ? (
           <ActivityIndicator size="small" color="#fff" />
         ) : (
           t("login.login")

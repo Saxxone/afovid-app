@@ -1,7 +1,14 @@
 import Text from "@/app_directories/components/app/Text";
+import NotificationCard, {
+  targetPostId,
+} from "@/app_directories/components/notifications/NotificationCard";
 import api_routes from "@/app_directories/constants/ApiRoutes";
 import { app_routes } from "@/app_directories/constants/AppRoutes";
-import { violet_500 } from "@/app_directories/constants/Colors";
+import {
+  gray_200,
+  gray_800,
+  violet_500,
+} from "@/app_directories/constants/Colors";
 import { useSession } from "@/app_directories/context/AppContext";
 import { useI18n } from "@/app_directories/context/I18nProvider";
 import {
@@ -16,7 +23,6 @@ import {
   type Notification,
 } from "@/app_directories/types/notification";
 import { FetchMethod } from "@/app_directories/types/types";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { FlashList } from "@shopify/flash-list";
 import {
   type InfiniteData,
@@ -34,6 +40,7 @@ import {
   useColorScheme,
   View,
 } from "react-native";
+
 const PAGE_SIZE = 25;
 
 type NotificationListPage = {
@@ -44,6 +51,7 @@ type NotificationListPage = {
 export default function NotificationsScreen() {
   const { t } = useI18n();
   const color_scheme = useColorScheme();
+  const screen_bg = color_scheme === "dark" ? gray_800 : gray_200;
   const navigation = useNavigation();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -171,13 +179,14 @@ export default function NotificationsScreen() {
     [queryClient],
   );
 
-  const onPressRow = useCallback(
+  const onOpenPost = useCallback(
     async (item: Notification) => {
       if (item.read !== true) {
         await markOneRead(item.id);
       }
-      if (item.postId) {
-        router.push(app_routes.post.view(item.postId));
+      const id = targetPostId(item);
+      if (id) {
+        router.push(app_routes.post.view(id));
       }
     },
     [markOneRead, router],
@@ -210,56 +219,23 @@ export default function NotificationsScreen() {
 
   useNotificationSse(queryClient, !!session);
 
-  const renderItem = useCallback(
-    ({ item }: { item: Notification }) => {
-      const unread = item.read !== true;
-      return (
-        <View
-          style={tailwindClasses(
-            "flex-row items-center border-b border-gray-300 dark:border-gray-600 px-3 py-3",
-          )}
-        >
-          <Pressable
-            onPress={() => onPressRow(item)}
-            style={tailwindClasses("flex-1 flex-row items-start")}
-          >
-            <View
-              style={tailwindClasses(
-                `mt-1.5 h-2 w-2 rounded-full mr-2 ${unread ? "bg-indigo-500" : "bg-transparent"}`,
-              )}
-            />
-            <View style={tailwindClasses("flex-1")}>
-              <Text
-                className={
-                  unread ? "font-semibold text-gray-900 dark:text-gray-100" : ""
-                }
-                numberOfLines={4}
-              >
-                {item.description}
-              </Text>
-              {item.postId ? (
-                <Text className="text-xs text-indigo-500 mt-1">
-                  {t("notifications.open_post")}
-                </Text>
-              ) : null}
-            </View>
-          </Pressable>
-          <Pressable
-            onPress={() => deleteMutation.mutate(item.id)}
-            hitSlop={12}
-            disabled={deleteMutation.isPending}
-            accessibilityLabel="Delete notification"
-          >
-            <Ionicons
-              name="trash-outline"
-              size={22}
-              color={color_scheme === "dark" ? "#9ca3af" : "#6b7280"}
-            />
-          </Pressable>
-        </View>
-      );
+  const onDelete = useCallback(
+    (id: string) => {
+      deleteMutation.mutate(id);
     },
-    [color_scheme, deleteMutation, onPressRow, t],
+    [deleteMutation],
+  );
+
+  const renderItem = useCallback(
+    ({ item }: { item: Notification }) => (
+      <NotificationCard
+        item={item}
+        onOpenPost={onOpenPost}
+        onDelete={onDelete}
+        deletePending={deleteMutation.isPending}
+      />
+    ),
+    [onOpenPost, onDelete, deleteMutation.isPending],
   );
 
   const footer = isFetchingNextPage ? (
@@ -269,8 +245,14 @@ export default function NotificationsScreen() {
   ) : null;
 
   return (
-    <View style={tailwindClasses("flex-1 bg-gray-200 dark:bg-gray-800")}>
+    <View
+      style={[
+        tailwindClasses("container flex-1"),
+        { backgroundColor: screen_bg },
+      ]}
+    >
       <FlashList
+        style={{ flex: 1, backgroundColor: screen_bg }}
         data={rows}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}

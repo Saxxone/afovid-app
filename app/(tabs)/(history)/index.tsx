@@ -104,8 +104,8 @@ export default function HistoryScreen() {
   }
 
   return (
-    <View style={tailwindClasses("flex-1")}>
-      <View style={tailwindClasses("flex-row gap-2 px-3 py-2")}>
+    <View style={tailwindClasses("flex-1 px-4")}>
+      <View style={tailwindClasses("flex-row gap-2 py-2")}>
         {(
           [
             [0, t("history.tab_history")],
@@ -136,7 +136,7 @@ export default function HistoryScreen() {
           <ActivityIndicator color={violet_500} size="large" />
         </View>
       ) : !posts.length ? (
-        <View style={tailwindClasses("px-4 py-12")}>
+        <View style={tailwindClasses("py-12")}>
           <Text className="text-center text-gray-500">{emptyMessage}</Text>
         </View>
       ) : (

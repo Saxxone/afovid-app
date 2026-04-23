@@ -2,8 +2,11 @@ import {
   useContext,
   createContext,
   type PropsWithChildren,
+  useEffect,
   useMemo,
 } from "react";
+import { setAuthStateClearListener } from "@/app_directories/services/authSessionBridge";
+import { authDebug } from "@/app_directories/utils/authDebugLog";
 import { useStorageState } from "@/app_directories/services/useStorageState";
 
 const AuthContext = createContext<{
@@ -40,7 +43,7 @@ export function SessionProvider({ children }: Props) {
   const value = useMemo(() => {
     return {
       signIn: () => {
-        // Perform sign-in logic here save user to state
+        authDebug("session:signIn");
         setSession("xxx");
       },
       signOut: () => {
@@ -50,6 +53,11 @@ export function SessionProvider({ children }: Props) {
       isLoading: is_loading,
     };
   }, [is_loading, session, setSession]);
+
+  useEffect(() => {
+    setAuthStateClearListener(() => setSession(null));
+    return () => setAuthStateClearListener(null);
+  }, [setSession]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

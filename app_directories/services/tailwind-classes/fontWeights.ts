@@ -3,6 +3,7 @@ const fontWeights = {
   "font-extralight": { fontWeight: "200", fontFamily: "Outfit ExtraLight" },
   "font-light": { fontWeight: "300", fontFamily: "Outfit Light" },
   "font-normal": { fontWeight: "400", fontFamily: "Outfit Regular" },
+  "font-regular": { fontWeight: "400", fontFamily: "Outfit Regular" },
   "font-medium": { fontWeight: "500", fontFamily: "Outfit Medium" },
   "font-semibold": { fontWeight: "600", fontFamily: "Outfit SemiBold" },
   "font-bold": { fontWeight: "700", fontFamily: "Outfit Bold" },

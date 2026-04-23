@@ -1,7 +1,15 @@
-import { gray_200, gray_800, indigo_500, white } from "../constants/Colors";
+import {
+  gray_200,
+  gray_300,
+  gray_600,
+  gray_800,
+  violet_500,
+  white,
+} from "../constants/Colors";
 
 export const headerLight = {
-  tabBarActiveTintColor: indigo_500,
+  tabBarActiveTintColor: violet_500,
+  tabBarInactiveTintColor: gray_600,
   headerStyle: {
     backgroundColor: gray_200,
   },
@@ -14,7 +22,8 @@ export const headerLight = {
 };
 
 export const headerDark = {
-  tabBarActiveTintColor: indigo_500,
+  tabBarActiveTintColor: violet_500,
+  tabBarInactiveTintColor: gray_300,
   headerStyle: {
     backgroundColor: gray_800,
   },

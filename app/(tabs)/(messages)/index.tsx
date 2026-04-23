@@ -1,104 +1,384 @@
 import Text from "@/app_directories/components/app/Text";
-import AppButton from "@/app_directories/components/form/Button";
+import FloatingActionButton from "@/app_directories/components/app/FloatingActionButton";
+import EncryptionSetupPanel from "@/app_directories/components/messages/EncryptionSetupPanel";
 import { app_routes } from "@/app_directories/constants/AppRoutes";
 import api_routes from "@/app_directories/constants/ApiRoutes";
+import {
+  gray_200,
+  gray_300,
+  gray_500,
+  gray_600,
+  gray_700,
+  gray_800,
+  gray_900,
+  messages_border,
+  messages_card_bg,
+  messages_screen_bg,
+  white,
+} from "@/app_directories/constants/Colors";
 import { useI18n } from "@/app_directories/context/I18nProvider";
+import { useMessageUnread } from "@/app_directories/context/MessageUnreadContext";
 import { useSnackBar } from "@/app_directories/context/SnackBarProvider";
+import {
+  ensureOlmReady,
+  getStoredDeviceId,
+  registerDeviceWithServer,
+  replenishOtksIfNeeded,
+} from "@/app_directories/crypto/olm/deviceApi";
+import {
+  getChatInboxSocket,
+  refreshChatSocketAuth,
+} from "@/app_directories/services/chatInboxSocket";
 import {
   ApiConnectService,
   getTokens,
 } from "@/app_directories/services/ApiConnectService";
 import tailwindClasses from "@/app_directories/services/ClassTransformer";
-import type { Room } from "@/app_directories/types/chat";
+import type { Chat, Room } from "@/app_directories/types/chat";
 import { FetchMethod } from "@/app_directories/types/types";
 import { getUserIdFromAccessToken } from "@/app_directories/utils/jwtPayload";
-import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
+import {
+  useFocusEffect,
+  useRouter,
+  type RelativePathString,
+} from "expo-router";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  Image,
+  Pressable,
+  useColorScheme,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const AVATAR_SIZE = 40;
+const FAB_SIZE = 56;
 
 export default function MessagesIndex() {
   const { t } = useI18n();
   const router = useRouter();
+  const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
+  const color_scheme = useColorScheme();
+  const isDark = color_scheme === "dark";
+  const canGoBack = navigation.canGoBack();
+
+  const { clearUnread } = useMessageUnread();
   const { snackBar, setSnackBar } = useSnackBar();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [selfId, setSelfId] = useState<string | null>(null);
+  const [deviceId, setDeviceId] = useState<string | null>(null);
+  const [registering, setRegistering] = useState(false);
 
-  const loadRooms = useCallback(async () => {
-    setLoading(true);
-    const { access_token } = await getTokens();
-    if (!access_token) {
-      setRooms([]);
-      setSelfId(null);
-      setLoading(false);
-      return;
-    }
-    setSelfId(getUserIdFromAccessToken(access_token));
-    const url = `${api_routes.room.rooms}?skip=0&take=50`;
-    const res = await ApiConnectService<Room[]>({
-      url,
-      method: FetchMethod.GET,
-    });
-    if (res.error) {
+  const screenBg = isDark ? messages_screen_bg : gray_200;
+  const cardBg = isDark ? messages_card_bg : white;
+  const cardBorder = isDark ? messages_border : gray_200;
+  const titleColor = isDark ? white : gray_900;
+  const nameColor = isDark ? white : gray_900;
+  const emptyColor = isDark ? gray_500 : gray_600;
+  const backControlBg = isDark ? messages_card_bg : white;
+  const avatarPlaceholderBg = isDark ? gray_600 : gray_300;
+  const activityColor = isDark ? white : gray_800;
+
+  const showSnack = useCallback(
+    (message: string) => {
       setSnackBar({
         ...snackBar,
         visible: true,
         type: "error",
         title: t("common.error"),
-        message:
-          (res.error as { message?: string })?.message ??
-          t("messages.no_results"),
+        message,
       });
-      setRooms([]);
-    } else {
-      setRooms(res.data ?? []);
+    },
+    [setSnackBar, snackBar, t],
+  );
+
+  const loadRooms = useCallback(
+    async (options?: { silent?: boolean }) => {
+      const silent = options?.silent ?? false;
+      if (!silent) setLoading(true);
+      const { access_token } = await getTokens();
+      if (!access_token) {
+        setRooms([]);
+        setSelfId(null);
+        if (!silent) setLoading(false);
+        return;
+      }
+      const uid = getUserIdFromAccessToken(access_token);
+      setSelfId(uid);
+      if (!uid) {
+        if (!silent) setLoading(false);
+        return;
+      }
+
+      await ensureOlmReady();
+      setDeviceId(await getStoredDeviceId());
+
+      const roomsRes = await ApiConnectService<Room[]>({
+        url: `${api_routes.room.rooms}?skip=0&take=50`,
+        method: FetchMethod.GET,
+      });
+
+      if (roomsRes.error) {
+        if (!silent) {
+          setSnackBar({
+            ...snackBar,
+            visible: true,
+            type: "error",
+            title: t("common.error"),
+            message:
+              (roomsRes.error as { message?: string })?.message ??
+              t("messages.no_results"),
+          });
+          setRooms([]);
+        }
+      } else {
+        setRooms(roomsRes.data ?? []);
+      }
+      if (!silent) setLoading(false);
+    },
+    [setSnackBar, snackBar, t],
+  );
+
+  const registerDevice = useCallback(async () => {
+    if (!selfId) return;
+    setRegistering(true);
+    try {
+      const id = await registerDeviceWithServer();
+      setDeviceId(id);
+      await refreshChatSocketAuth();
+      await loadRooms();
+      void replenishOtksIfNeeded();
+    } catch (e) {
+      showSnack(
+        e instanceof Error ? e.message : t("security.device_not_registered"),
+      );
+    } finally {
+      setRegistering(false);
     }
-    setLoading(false);
-  }, [setSnackBar, snackBar, t]);
+  }, [loadRooms, selfId, showSnack, t]);
+
+  const loadRoomsRef = useRef(loadRooms);
+  loadRoomsRef.current = loadRooms;
+
+  useEffect(() => {
+    const s = getChatInboxSocket();
+    let debounce: ReturnType<typeof setTimeout> | undefined;
+    const onReceive = (_chat: Chat) => {
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(() => {
+        void loadRoomsRef.current({ silent: true });
+      }, 400);
+    };
+    s.on("receive-message", onReceive);
+    void (async () => {
+      await refreshChatSocketAuth();
+      if (!s.connected) s.connect();
+    })();
+    return () => {
+      if (debounce) clearTimeout(debounce);
+      s.off("receive-message", onReceive);
+    };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
+      clearUnread();
       void loadRooms();
-    }, [loadRooms]),
+    }, [loadRooms, clearUnread]),
   );
 
-  return (
-    <View style={tailwindClasses("flex-1 px-3 pt-2")}>
-      <AppButton onPress={() => router.push(app_routes.messages.new)}>
-        {t("chat.direct_message")}
-      </AppButton>
-      {loading ? (
-        <ActivityIndicator style={tailwindClasses("mt-6")} />
+  const needsRegister = !loading && !!selfId && !deviceId;
+
+  const fabBottom = useMemo(
+    () => Math.max(insets.bottom, 8) + 8,
+    [insets.bottom],
+  );
+  const listPadBottom = useMemo(
+    () => (needsRegister ? 24 : fabBottom + FAB_SIZE + 20),
+    [needsRegister, fabBottom],
+  );
+
+  const otherParticipant = useCallback(
+    (room: Room) => {
+      if (!selfId) return room.participants?.[0] ?? null;
+      return (
+        room.participants?.find((p) => p.id !== selfId) ??
+        room.participants?.[0] ??
+        null
+      );
+    },
+    [selfId],
+  );
+
+  const header = (
+    <View
+      style={{
+        paddingTop: insets.top + 8,
+        paddingBottom: 12,
+        paddingHorizontal: 16,
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: screenBg,
+      }}
+    >
+      {canGoBack ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("common.back")}
+          onPress={() => navigation.goBack()}
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 8,
+            backgroundColor: backControlBg,
+            borderWidth: isDark ? 1 : 0,
+            borderColor: cardBorder,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Ionicons
+            name="chevron-back"
+            size={22}
+            color={isDark ? white : gray_800}
+          />
+        </Pressable>
       ) : (
-        <FlatList
-          data={rooms}
-          keyExtractor={(item) => item.id}
-          ListEmptyComponent={
-            <Text style={tailwindClasses("mt-6 text-center text-gray-500")}>
-              {t("messages.no_results")}
-            </Text>
-          }
-          renderItem={({ item }) => (
-            <Pressable
-              onPress={() =>
-                router.push(app_routes.messages.room({ r: item.id }))
-              }
-              style={tailwindClasses(
-                "mb-3 rounded-lg bg-white p-4 dark:bg-gray-700",
-              )}
-            >
+        <View style={{ width: 40, height: 40 }} />
+      )}
+      <Text
+        className="ml-3 text-xl font-bold flex-1"
+        style={{ color: titleColor }}
+      >
+        {t("messages.page_title")}
+      </Text>
+    </View>
+  );
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: screenBg }}>
+        {header}
+        <View style={tailwindClasses("flex-1 items-center justify-center")}>
+          <ActivityIndicator size="large" color={activityColor} />
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1, backgroundColor: screenBg }}>
+      {header}
+
+      {needsRegister ? (
+        <View
+          style={[
+            tailwindClasses("flex-1 px-4"),
+            { paddingTop: 8, paddingBottom: insets.bottom + 8 },
+          ]}
+        >
+          <EncryptionSetupPanel
+            busy={registering}
+            onRegister={() => void registerDevice()}
+          />
+        </View>
+      ) : (
+        <>
+          <FlatList
+            style={tailwindClasses("flex-1")}
+            data={rooms}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={{
+              paddingHorizontal: 16,
+              paddingTop: 4,
+              paddingBottom: listPadBottom,
+              flexGrow: 1,
+            }}
+            ListEmptyComponent={
               <Text
-                style={tailwindClasses(
-                  "font-semibold text-gray-900 dark:text-white",
-                )}
+                className="mt-6 text-center text-base-sm font-normal"
+                style={{ color: emptyColor }}
               >
-                {item.name ??
-                  item.participants?.find((p) => p.id !== selfId)?.name ??
-                  t("messages.page_title")}
+                {t("messages.no_results")}
               </Text>
-            </Pressable>
-          )}
-        />
+            }
+            renderItem={({ item }) => {
+              const other = otherParticipant(item);
+              const name = item.name ?? other?.name ?? t("messages.page_title");
+              const img = other?.img;
+              return (
+                <Pressable
+                  onPress={() =>
+                    router.push(app_routes.messages.room({ r: item.id }))
+                  }
+                  style={{
+                    marginBottom: 12,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    padding: 12,
+                    borderRadius: 10,
+                    backgroundColor: cardBg,
+                    borderWidth: 1,
+                    borderColor: cardBorder,
+                  }}
+                >
+                  {img ? (
+                    <Image
+                      source={{ uri: img as string }}
+                      style={{
+                        width: AVATAR_SIZE,
+                        height: AVATAR_SIZE,
+                        borderRadius: AVATAR_SIZE / 2,
+                        backgroundColor: gray_700,
+                      }}
+                    />
+                  ) : (
+                    <View
+                      style={{
+                        width: AVATAR_SIZE,
+                        height: AVATAR_SIZE,
+                        borderRadius: AVATAR_SIZE / 2,
+                        backgroundColor: avatarPlaceholderBg,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Ionicons
+                        name="person"
+                        size={22}
+                        color={isDark ? gray_300 : gray_500}
+                      />
+                    </View>
+                  )}
+                  <Text
+                    numberOfLines={1}
+                    className="ml-3 text-base font-semibold flex-1"
+                    style={{ color: nameColor }}
+                  >
+                    {name}
+                  </Text>
+                </Pressable>
+              );
+            }}
+          />
+          <FloatingActionButton
+            to={app_routes.messages.new as RelativePathString}
+            bottom={fabBottom}
+            right={16}
+          />
+        </>
       )}
     </View>
   );

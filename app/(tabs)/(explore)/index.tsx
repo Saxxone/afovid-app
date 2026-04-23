@@ -1,8 +1,17 @@
+/**
+ * Post search: uses inline `TextInput` in the search shell.
+ * Do not use `FormInput` here unless you add the import — unqualified `FormInput` throws at runtime.
+ * (FormInput is also a poor fit: fixed prepend icon set, light/dark well colors don’t match this shell.)
+ */
 import Text from "@/app_directories/components/app/Text";
-import FormInput from "@/app_directories/components/form/FormInput";
 import PostDisplay from "@/app_directories/components/post/PostDisplay";
 import api_routes from "@/app_directories/constants/ApiRoutes";
-import { violet_500 } from "@/app_directories/constants/Colors";
+import {
+  search_placeholder_muted,
+  search_shell_screen_bg,
+  search_well_bg,
+  violet_500,
+} from "@/app_directories/constants/Colors";
 import { useI18n } from "@/app_directories/context/I18nProvider";
 import { ApiConnectService } from "@/app_directories/services/ApiConnectService";
 import tailwindClasses from "@/app_directories/services/ClassTransformer";
@@ -11,10 +20,12 @@ import { FetchMethod } from "@/app_directories/types/types";
 import { FlashList } from "@shopify/flash-list";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   RefreshControl,
+  TextInput,
   View,
   type ViewToken,
 } from "react-native";
@@ -22,7 +33,7 @@ import {
 const POSTS_PER_PAGE = 9;
 const SEARCH_DEBOUNCE_MS = 800;
 
-/** Match bree-web `pages/explore.vue` query normalization before calling the API. */
+/** Match afovid-web `pages/explore.vue` query normalization before calling the API. */
 function normalizeSearchForApi(raw: string): string {
   return raw
     .trim()
@@ -172,7 +183,10 @@ export default function ExploreSearchScreen() {
     if (!debouncedQ.length) {
       return (
         <View style={tailwindClasses("p-6")}>
-          <Text className="text-center text-gray-500">
+          <Text
+            className="text-center"
+            style={{ color: search_placeholder_muted }}
+          >
             {t("explore.hint_empty")}
           </Text>
         </View>
@@ -187,59 +201,105 @@ export default function ExploreSearchScreen() {
     }
     return (
       <View style={tailwindClasses("p-6")}>
-        <Text className="text-center text-gray-500">
+        <Text
+          className="text-center"
+          style={{ color: search_placeholder_muted }}
+        >
           {t("explore.no_results")}
         </Text>
       </View>
     );
   };
 
+  const searchPlaceholder = t("explore.placeholder");
+
   return (
-    <View style={tailwindClasses("container flex-1")}>
-      <View style={tailwindClasses("px-3 pt-2 pb-2")}>
-        <FormInput
-          value={search}
-          onChangeText={setSearch}
-          onSubmitEditing={commitSearchToUrl}
-          returnKeyType="search"
-          placeholder={t("explore.placeholder")}
-          validationType="none"
+    <View
+      style={[
+        tailwindClasses("flex-1 w-full"),
+        {
+          backgroundColor: search_shell_screen_bg,
+          minHeight: 0,
+        },
+      ]}
+    >
+      <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            borderRadius: 10,
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            minHeight: 48,
+            backgroundColor: search_well_bg,
+          }}
+        >
+          <Ionicons
+            name="search"
+            size={20}
+            color={search_placeholder_muted}
+            style={{ marginRight: 8 }}
+          />
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            onSubmitEditing={commitSearchToUrl}
+            placeholder={searchPlaceholder}
+            placeholderTextColor={search_placeholder_muted}
+            style={[
+              tailwindClasses("font-normal"),
+              {
+                flex: 1,
+                fontSize: 16,
+                paddingVertical: 0,
+                color: "#fff",
+              },
+            ]}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+          />
+        </View>
+      </View>
+      <View style={tailwindClasses("min-h-0 flex-1 px-4")}>
+        <FlashList
+          style={tailwindClasses("flex-1")}
+          data={feed_posts}
+          viewabilityConfig={viewabilityConfig}
+          onViewableItemsChanged={onViewableItemsChanged}
+          ListEmptyComponent={listEmpty}
+          keyExtractor={(item) => item?.id ?? ""}
+          renderItem={({ item }) => (
+            <PostDisplay
+              key={item?.id}
+              post={item}
+              ellipsis={true}
+              actions={true}
+              isFetching={listLoading}
+              emphasizeVideo={postContainsVideo(item)}
+              isFeedVideoActive={activePostId === item?.id}
+            />
+          )}
+          refreshControl={
+            <RefreshControl
+              colors={[violet_500]}
+              refreshing={
+                isFetching && debouncedQ.length > 0 && feed_posts.length > 0
+              }
+              onRefresh={() => void refetch()}
+            />
+          }
+          onEndReached={() => {
+            if (hasNextPage && !isFetchingNextPage && debouncedQ.length > 0) {
+              fetchNextPage();
+            }
+          }}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={renderFooter}
         />
       </View>
-      <FlashList
-        data={feed_posts}
-        viewabilityConfig={viewabilityConfig}
-        onViewableItemsChanged={onViewableItemsChanged}
-        ListEmptyComponent={listEmpty}
-        keyExtractor={(item) => item?.id ?? ""}
-        renderItem={({ item }) => (
-          <PostDisplay
-            key={item?.id}
-            post={item}
-            ellipsis={true}
-            actions={true}
-            isFetching={listLoading}
-            emphasizeVideo={postContainsVideo(item)}
-            isFeedVideoActive={activePostId === item?.id}
-          />
-        )}
-        refreshControl={
-          <RefreshControl
-            colors={[violet_500]}
-            refreshing={
-              isFetching && debouncedQ.length > 0 && feed_posts.length > 0
-            }
-            onRefresh={() => void refetch()}
-          />
-        }
-        onEndReached={() => {
-          if (hasNextPage && !isFetchingNextPage && debouncedQ.length > 0) {
-            fetchNextPage();
-          }
-        }}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={renderFooter}
-      />
     </View>
   );
 }

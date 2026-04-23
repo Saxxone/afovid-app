@@ -1,6 +1,7 @@
 /** Partial Portuguese copy; missing keys fall back to English via i18n-js. */
 const pt = {
   common: {
+    back: "Voltar",
     error: "Erro",
   },
   navigation: {
@@ -66,12 +67,29 @@ const pt = {
     page_title: "Chat",
     direct_message: "Mensagem direta",
     new: "Diga algo…",
-    missing_peer_key: "Este utilizador ainda não configurou encriptação.",
     encryption_failed: "Não foi possível encriptar a mensagem.",
     send_failed: "Não foi possível enviar a mensagem.",
-    setup_keys_hint:
-      "A encriptação extremo-a-extremo precisa de chaves neste dispositivo. Gere chaves para continuar.",
-    generate_keys: "Gerar chaves de encriptação",
+    unreadable_on_this_device:
+      "Mensagem encriptada — ilegível neste dispositivo.",
+  },
+  security: {
+    setup_title: "Configurar encriptação extremo-a-extremo",
+    setup_hint:
+      "Registe este dispositivo para trocar mensagens encriptadas. As chaves nunca saem deste dispositivo.",
+    register_device: "Registar este dispositivo",
+    device_not_registered:
+      "Este dispositivo ainda não está registado para mensagens encriptadas.",
+    no_peer_devices:
+      "O outro participante não tem dispositivos registados para mensagens encriptadas.",
+    devices_title: "Os seus dispositivos",
+    devices_hint:
+      "Estes dispositivos conseguem ler as suas mensagens diretas. Revogue os que já não utilizar.",
+    revoke_device: "Revogar",
+    this_device: "Este dispositivo",
+    fingerprint: "Impressão digital",
+    last_seen: "Visto pela última vez",
+    revoked: "revogado",
+    verify_fingerprint: "Verificar impressão digital",
   },
   profile: {
     edit: "Editar perfil",

@@ -7,6 +7,7 @@ const api_routes = {
   google_login: api_url + "/auth/login/google",
   google_signup: api_url + "/auth/signup/google",
   logout: api_url + "/auth/logout",
+  profile: api_url + "/auth/profile",
   register: api_url + "/user/register",
   token_refresh: api_url + "/auth/refresh",
   posts: {
@@ -47,6 +48,16 @@ const api_routes = {
     create: ws + "/create", // Websocket URLs are handled differently
     delete: (id: string) => api_url + `/chats/delete/${id}`,
   },
+  devices: {
+    register: `${api_url}/device`,
+    mine: `${api_url}/device/me`,
+    revoke: (id: string) => `${api_url}/device/${encodeURIComponent(id)}`,
+    claim: `${api_url}/device/keys/claim`,
+    uploadOtk: (id: string) =>
+      `${api_url}/device/${encodeURIComponent(id)}/keys/otk`,
+    otkCount: (id: string) =>
+      `${api_url}/device/${encodeURIComponent(id)}/keys/otk-count`,
+  },
   room: {
     rooms: api_url + "/rooms/all",
     findRoomByParticipantsOrCreate: (id: string, id2: string) =>
@@ -58,8 +69,8 @@ const api_routes = {
   users: {
     get: (id: string) => api_url + `/user/${id}`,
     update: (id: string) => api_url + `/user/update/${id}`,
-    search: (search: string, withPk = true) =>
-      `${api_url}/user/search?q=${encodeURIComponent(search)}&with_pk=${withPk}`,
+    search: (search: string) =>
+      `${api_url}/user/search?q=${encodeURIComponent(search)}`,
   },
   coins: {
     packages: api_url + "/coins/packages",

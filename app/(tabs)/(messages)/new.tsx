@@ -1,25 +1,104 @@
 import Text from "@/app_directories/components/app/Text";
-import FormInput from "@/app_directories/components/form/FormInput";
 import { app_routes } from "@/app_directories/constants/AppRoutes";
 import api_routes from "@/app_directories/constants/ApiRoutes";
+import {
+  gray_100,
+  gray_200,
+  gray_300,
+  gray_400,
+  gray_500,
+  gray_600,
+  gray_700,
+  gray_800,
+  gray_900,
+  messages_border,
+  messages_card_bg,
+  search_back_button_bg,
+  search_placeholder_muted,
+  search_shell_screen_bg,
+  search_well_bg,
+  white,
+} from "@/app_directories/constants/Colors";
 import { useI18n } from "@/app_directories/context/I18nProvider";
 import { ApiConnectService } from "@/app_directories/services/ApiConnectService";
 import tailwindClasses from "@/app_directories/services/ClassTransformer";
 import type { User } from "@/app_directories/types/user";
 import { FetchMethod } from "@/app_directories/types/types";
-import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, View } from "react-native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter, type Href } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  BackHandler,
+  FlatList,
+  Pressable,
+  TextInput,
+  useColorScheme,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const DEBOUNCE_MS = 800;
 
 export default function NewDirectMessage() {
   const { t } = useI18n();
   const router = useRouter();
+  const navigation = useNavigation();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
+
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const screenBg = isDark ? search_shell_screen_bg : gray_200;
+  const backBtnBg = isDark ? search_back_button_bg : white;
+  const backBtnBorder = isDark ? messages_border : gray_200;
+  const titleColor = isDark ? white : gray_900;
+  const searchWellBg = isDark ? search_well_bg : white;
+  const searchWellBorder = isDark ? "transparent" : gray_200;
+  const inputTextColor = isDark ? gray_100 : gray_900;
+  const placeholderColor = isDark ? search_placeholder_muted : gray_500;
+  const searchIconColor = isDark ? search_placeholder_muted : gray_600;
+  const cardBg = isDark ? messages_card_bg : white;
+  const cardBorder = isDark ? messages_border : gray_200;
+  const nameColor = isDark ? white : gray_900;
+  const subColor = isDark ? gray_400 : gray_600;
+  const emptyColor = isDark ? gray_500 : gray_600;
+  const activityColor = isDark ? white : gray_800;
+
+  const searchPlaceholder = useMemo(() => t("explore.placeholder"), [t]);
+
+  const { fromKeySetup } = useLocalSearchParams<{
+    fromKeySetup?: string;
+  }>();
+  const fromPostKeygenSetup = fromKeySetup === "1";
+
+  const goBackFromNew = useCallback(() => {
+    if (fromPostKeygenSetup) {
+      const href: Href = app_routes.messages.root;
+      router.replace(href);
+      return;
+    }
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    const href: Href = app_routes.messages.root;
+    router.replace(href);
+  }, [fromPostKeygenSetup, navigation, router]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+        goBackFromNew();
+        return true;
+      });
+      return () => sub.remove();
+    }, [goBackFromNew]),
+  );
 
   useEffect(() => {
     const h = setTimeout(() => setDebounced(search.trim()), DEBOUNCE_MS);
@@ -29,6 +108,7 @@ export default function NewDirectMessage() {
   useEffect(() => {
     if (!debounced.length) {
       setUsers([]);
+      setLoading(false);
       return;
     }
     let cancelled = false;
@@ -51,22 +131,108 @@ export default function NewDirectMessage() {
   }, [debounced]);
 
   return (
-    <View style={tailwindClasses("flex-1 px-3 pt-2")}>
-      <FormInput
-        label={t("explore.placeholder")}
-        placeholder={t("explore.placeholder")}
-        value={search}
-        onChangeText={setSearch}
-      />
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: screenBg }}
+      edges={["top", "left", "right"]}
+    >
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          paddingHorizontal: 16,
+          paddingTop: 4,
+          paddingBottom: 10,
+        }}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("common.back")}
+          onPress={goBackFromNew}
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 6,
+            backgroundColor: backBtnBg,
+            borderWidth: isDark ? 1 : 0,
+            borderColor: backBtnBorder,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Ionicons
+            name="chevron-back"
+            size={22}
+            color={isDark ? white : gray_800}
+          />
+        </Pressable>
+        <Text
+          className="ml-3 text-xl font-bold flex-1"
+          style={{ color: titleColor }}
+        >
+          {t("chat.direct_message")}
+        </Text>
+      </View>
+
+      <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            borderRadius: 10,
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            minHeight: 48,
+            backgroundColor: searchWellBg,
+            borderWidth: isDark ? 0 : 1,
+            borderColor: searchWellBorder,
+          }}
+        >
+          <Ionicons
+            name="search"
+            size={20}
+            color={searchIconColor}
+            style={{ marginRight: 8 }}
+          />
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder={searchPlaceholder}
+            placeholderTextColor={placeholderColor}
+            style={[
+              tailwindClasses("font-normal"),
+              {
+                flex: 1,
+                fontSize: 16,
+                paddingVertical: 0,
+                color: inputTextColor,
+              },
+            ]}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+          />
+        </View>
+      </View>
+
       {loading ? (
-        <ActivityIndicator style={tailwindClasses("mt-4")} />
+        <View style={tailwindClasses("flex-1 items-center justify-center")}>
+          <ActivityIndicator size="small" color={activityColor} />
+        </View>
       ) : (
         <FlatList
+          style={tailwindClasses("flex-1")}
           data={users}
           keyExtractor={(u) => u.id}
+          contentContainerStyle={{
+            paddingHorizontal: 16,
+            paddingBottom: 24,
+            flexGrow: 1,
+          }}
+          keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
             debounced ? (
-              <Text style={tailwindClasses("mt-4 text-center text-gray-500")}>
+              <Text className="mt-4 text-center" style={{ color: emptyColor }}>
                 {t("explore.no_results")}
               </Text>
             ) : null
@@ -76,19 +242,25 @@ export default function NewDirectMessage() {
               onPress={() =>
                 router.push(app_routes.messages.room({ u: item.id }))
               }
-              style={tailwindClasses(
-                "mb-2 flex-row items-center rounded-lg bg-white p-3 dark:bg-gray-700",
-              )}
+              style={{
+                marginBottom: 8,
+                flexDirection: "row",
+                alignItems: "center",
+                padding: 12,
+                borderRadius: 10,
+                backgroundColor: cardBg,
+                borderWidth: 1,
+                borderColor: cardBorder,
+              }}
             >
               <View style={tailwindClasses("flex-1")}>
                 <Text
-                  style={tailwindClasses(
-                    "font-medium text-gray-900 dark:text-white",
-                  )}
+                  className="font-medium text-base"
+                  style={{ color: nameColor }}
                 >
                   {item.name}
                 </Text>
-                <Text style={tailwindClasses("text-sm text-gray-500")}>
+                <Text style={{ color: subColor, fontSize: 14, marginTop: 2 }}>
                   @{item.username}
                 </Text>
               </View>
@@ -96,6 +268,6 @@ export default function NewDirectMessage() {
           )}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }

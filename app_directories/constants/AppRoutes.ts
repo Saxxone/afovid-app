@@ -20,11 +20,14 @@ export const app_routes: Record<string, any> = {
   auth: {
     login: "/(auth)/login",
     register: "/(auth)/register",
-    forgot_password: "/(auth)forgot-password",
+    forgot_password: "/(auth)/forgot-password",
   },
   legal: {
     privacy: "/legal/privacy",
     tos: "/legal/tos",
+  },
+  settings: {
+    security: "/settings/security",
   },
   messages: {
     root: "/(tabs)/(messages)",

@@ -1,10 +1,36 @@
-import { headerDark, headerLight } from "@/app_directories/styles/main";
+import { useMessageUnread } from "@/app_directories/context/MessageUnreadContext";
 import { getTokens } from "@/app_directories/services/ApiConnectService";
 import { registerPushAfterAuth } from "@/app_directories/services/pushRegistration";
+import { headerDark, headerLight } from "@/app_directories/styles/main";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Tabs } from "expo-router";
 import { useEffect, useMemo } from "react";
 import { useColorScheme } from "react-native";
+import { View } from "react-native";
+
+function MessagesTabBarIcon({ color }: { color: string }) {
+  const { hasUnreadMessages } = useMessageUnread();
+  return (
+    <View style={{ position: "relative", paddingVertical: 2 }}>
+      <Ionicons name="chatbubble-outline" size={24} color={color} />
+      {hasUnreadMessages ? (
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            right: -2,
+            width: 8,
+            height: 8,
+            borderRadius: 4,
+            backgroundColor: "#7c3aed",
+            borderWidth: 2,
+            borderColor: "white",
+          }}
+        />
+      ) : null}
+    </View>
+  );
+}
 
 export default function TabLayout() {
   useEffect(() => {
@@ -76,7 +102,7 @@ export default function TabLayout() {
         name="(messages)"
         options={{
           title: "",
-          tabBarIcon: tabBarIcon("chatbubble-outline"),
+          tabBarIcon: (props) => <MessagesTabBarIcon color={props.color} />,
         }}
       />
       <Tabs.Screen

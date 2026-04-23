@@ -1,24 +1,30 @@
 import { install } from "react-native-quick-crypto";
 install();
 
+import SessionUnauthenticatedGuard from "@/app_directories/components/app/SessionUnauthenticatedGuard";
 import SnackBar from "@/app_directories/components/app/SnackBar";
 import { app_routes } from "@/app_directories/constants/AppRoutes";
 import { DarkTheme, LightTheme } from "@/app_directories/constants/Theme";
 import { SessionProvider } from "@/app_directories/context/AppContext";
 import { I18nProvider } from "@/app_directories/context/I18nProvider";
+import { MessageUnreadProvider } from "@/app_directories/context/MessageUnreadContext";
+import { useOtkReplenish } from "@/app_directories/hooks/useOtkReplenish";
 import {
   SnackBarProvider,
   useSnackBar,
 } from "@/app_directories/context/SnackBarProvider";
+import { gray_200, gray_800 } from "@/app_directories/constants/Colors";
 import tailwindClasses from "@/app_directories/services/ClassTransformer";
 import { headerDark, headerLight } from "@/app_directories/styles/main";
 import { ThemeProvider } from "@react-navigation/native";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "@/app_directories/services/queryClient";
+import { QueryClientProvider } from "@tanstack/react-query";
 import * as Notifications from "expo-notifications";
 import { useFonts } from "expo-font";
 import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
+import * as SystemUI from "expo-system-ui";
 import React, { useCallback, useEffect, useState } from "react";
 import { useColorScheme } from "react-native";
 import "react-native-reanimated";
@@ -36,13 +42,18 @@ Notifications.setNotificationHandler({
   }),
 });
 
-const queryClient = new QueryClient();
-
 function NotificationOpenPostBridge() {
   const router = useRouter();
 
   useEffect(() => {
     const navigateFromData = (data: Record<string, unknown> | undefined) => {
+      // DM pushes carry a `roomId` and should jump straight to the thread.
+      // Fall back to post deep-linking for the existing notification types.
+      const roomId = typeof data?.roomId === "string" ? data.roomId : "";
+      if (roomId) {
+        router.push(app_routes.messages.room({ r: roomId }));
+        return;
+      }
       const postId = typeof data?.postId === "string" ? data.postId : "";
       if (postId) router.push(app_routes.post.view(postId));
     };
@@ -89,12 +100,14 @@ export default function RootLayout() {
     <SessionProvider>
       <I18nProvider>
         <ThemeProvider value={color_scheme === "dark" ? DarkTheme : LightTheme}>
-          <QueryClientProvider client={queryClient}>
-            <SnackBarProvider>
-              <LayoutContents />
-            </SnackBarProvider>
-          </QueryClientProvider>
-          <StatusBar style="auto" />
+          <MessageUnreadProvider>
+            <QueryClientProvider client={queryClient}>
+              <SnackBarProvider>
+                <LayoutContents />
+              </SnackBarProvider>
+            </QueryClientProvider>
+          </MessageUnreadProvider>
+          <StatusBar style={color_scheme === "dark" ? "light" : "dark"} />
         </ThemeProvider>
       </I18nProvider>
     </SessionProvider>
@@ -106,6 +119,13 @@ function LayoutContents() {
   const header = color_scheme === "dark" ? headerDark : headerLight;
   const { snackBar, setSnackBar } = useSnackBar();
   const [showSnackBar, setShowSnackBar] = useState(false);
+
+  useOtkReplenish();
+
+  useEffect(() => {
+    const bg = color_scheme === "dark" ? gray_800 : gray_200;
+    void SystemUI.setBackgroundColorAsync(bg);
+  }, [color_scheme]);
 
   const closeSnack = useCallback(() => {
     setSnackBar({
@@ -123,6 +143,7 @@ function LayoutContents() {
   return (
     <>
       <NotificationOpenPostBridge />
+      <SessionUnauthenticatedGuard />
       <SafeAreaView
         style={[
           tailwindClasses("flex-1"),
@@ -190,6 +211,12 @@ function LayoutContents() {
             name="(profile)"
             options={{
               headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="settings/security"
+            options={{
+              title: "Security",
             }}
           />
         </Stack>

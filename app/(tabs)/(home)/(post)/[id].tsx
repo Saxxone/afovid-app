@@ -134,7 +134,7 @@ export default function PostScreen() {
           data={all_comments}
           ListEmptyComponent={
             is_fetching_comments ? null : (
-              <View style={tailwindClasses("p-3 mb-3")}>
+              <View style={tailwindClasses("p-4 mb-3")}>
                 <Text className="text-center text-gray-500">.</Text>
               </View>
             )
@@ -166,7 +166,7 @@ export default function PostScreen() {
         />
       </View>
     ) : (
-      <View style={[tailwindClasses("px-3 mb-3 ")]}>
+      <View style={[tailwindClasses("px-4 mb-3 ")]}>
         <Text
           style={tailwindClasses("text-center text-xl font-bold text-gray-500")}
         >

@@ -30,7 +30,7 @@ const PostRichTextDisplay = memo(function PostRichTextDisplay({
   const openMention = useCallback(
     async (username: string) => {
       const res = await ApiConnectService<User[]>({
-        url: api_routes.users.search(username, false),
+        url: api_routes.users.search(username),
         method: FetchMethod.GET,
       });
       const first = res.data?.[0];

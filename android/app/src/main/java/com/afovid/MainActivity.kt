@@ -1,4 +1,4 @@
-package com.anonymous.afovidapp
+package com.afovid
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

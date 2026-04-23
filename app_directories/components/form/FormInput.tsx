@@ -155,7 +155,7 @@ const FormInput = memo(
             style={[
               tailwindClasses("flex-1 font-light border-transparent"),
               props.multiline
-                ? tailwindClasses("h-32 bg-rose-500 mt-4")
+                ? tailwindClasses("min-h-[88px] py-3 px-1")
                 : tailwindClasses("h-14 px-1"),
               text_color,
               { backgroundColor: background_color },

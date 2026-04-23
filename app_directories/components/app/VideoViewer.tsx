@@ -1,3 +1,9 @@
+import Text from "@/app_directories/components/app/Text";
+import api_routes from "@/app_directories/constants/ApiRoutes";
+import { violet_500 } from "@/app_directories/constants/Colors";
+import { ApiConnectService } from "@/app_directories/services/ApiConnectService";
+import tailwindClasses from "@/app_directories/services/ClassTransformer";
+import { FetchMethod } from "@/app_directories/types/types";
 import { Ionicons } from "@expo/vector-icons";
 import { useEvent } from "expo";
 import {
@@ -13,18 +19,7 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
-import api_routes from "@/app_directories/constants/ApiRoutes";
-import { violet_500 } from "@/app_directories/constants/Colors";
-import { ApiConnectService } from "@/app_directories/services/ApiConnectService";
-import tailwindClasses from "@/app_directories/services/ClassTransformer";
-import { FetchMethod } from "@/app_directories/types/types";
+import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 
 interface Props {
   source: string;
@@ -70,6 +65,12 @@ export default function VideoScreen({
     () =>
       showMuteToggle === true && autoplay === true && nativeControls === false,
     [showMuteToggle, autoplay, nativeControls],
+  );
+
+  /** Feed mute chip only after first frame; avoids showing it on the loading overlay. */
+  const showMuteToggleWhenViewable = useMemo(
+    () => showMuteToggleUi && hasRenderedFrame,
+    [showMuteToggleUi, hasRenderedFrame],
   );
 
   const player = useVideoPlayer(source, (p) => {
@@ -159,16 +160,30 @@ export default function VideoScreen({
     if (status === "error") {
       return;
     }
-    void player.play();
+    try {
+      const maybePlayResult = player.play() as unknown;
+      if (
+        typeof maybePlayResult === "object" &&
+        maybePlayResult !== null &&
+        "catch" in maybePlayResult
+      ) {
+        void (maybePlayResult as Promise<void>).catch(() => {
+          // Android can reject keep-awake activation when the Activity is already
+          // torn down during fast navigation/background transitions.
+        });
+      }
+    } catch {
+      // Best-effort playback start; avoid bubbling lifecycle race exceptions.
+    }
     if (shouldForceMute) {
       player.muted = true;
     }
   }, [player, shouldPlay, autoplay, shouldForceMute, status]);
 
   const toggleFeedMute = useCallback(() => {
-    if (!showMuteToggleUi) return;
+    if (!showMuteToggleWhenViewable) return;
     setFeedUserWantsUnmuted((v) => !v);
-  }, [showMuteToggleUi]);
+  }, [showMuteToggleWhenViewable]);
 
   const fullscreenOptions = useMemo(
     () => ({ enable: allowFullscreen }),
@@ -200,10 +215,12 @@ export default function VideoScreen({
         {showLoadingOverlay ? (
           <View style={styles.loadingOverlay} pointerEvents="none">
             <ActivityIndicator size="large" color={violet_500} />
-            <Text style={styles.loadingLabel}>Loading video…</Text>
+            <Text className="font-medium" style={styles.loadingLabel}>
+              Loading video…
+            </Text>
           </View>
         ) : null}
-        {showMuteToggleUi ? (
+        {showMuteToggleWhenViewable ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={
@@ -216,7 +233,7 @@ export default function VideoScreen({
           >
             <Ionicons
               name={feedUserWantsUnmuted ? "volume-high" : "volume-mute"}
-              size={22}
+              size={16}
               color="#fff"
             />
           </Pressable>
@@ -243,7 +260,6 @@ const styles = StyleSheet.create({
   loadingLabel: {
     marginTop: 10,
     fontSize: 12,
-    fontWeight: "500",
     color: "#d1d5db",
   },
   muteButton: {

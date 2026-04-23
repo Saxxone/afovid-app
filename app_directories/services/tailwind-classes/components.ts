@@ -1,6 +1,7 @@
 import { gray_800, indigo_500, rounded_lg } from "../../constants/Colors";
 
 const components = {
+  /** Default screen gutter for list/scroll roots (align with home feed). */
   container: {
     width: "100%",
     maxWidth: "100vw",
