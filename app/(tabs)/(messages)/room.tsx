@@ -1,11 +1,18 @@
 import Text from "@/app_directories/components/app/Text";
-import AppButton from "@/app_directories/components/form/Button";
-import FormInput from "@/app_directories/components/form/FormInput";
 import EncryptionSetupPanel from "@/app_directories/components/messages/EncryptionSetupPanel";
-import { Image } from "expo-image";
-import * as ImagePicker from "expo-image-picker";
 import api_routes from "@/app_directories/constants/ApiRoutes";
+import {
+  gray_200,
+  gray_300,
+  gray_400,
+  gray_500,
+  gray_700,
+  gray_800,
+  gray_900,
+  white,
+} from "@/app_directories/constants/Colors";
 import { useI18n } from "@/app_directories/context/I18nProvider";
+import { useMessageUnread } from "@/app_directories/context/MessageUnreadContext";
 import { useSnackBar } from "@/app_directories/context/SnackBarProvider";
 import {
   claimPrekeys,
@@ -19,26 +26,27 @@ import {
   ApiConnectService,
   getTokens,
 } from "@/app_directories/services/ApiConnectService";
-import { uploadFilesWithProgress } from "@/app_directories/services/uploadWithProgress";
-import { resolvePlaybackUrl } from "@/app_directories/utils/playbackUrl";
+import {
+  getChatInboxSocket,
+  refreshChatSocketAuth,
+} from "@/app_directories/services/chatInboxSocket";
 import tailwindClasses from "@/app_directories/services/ClassTransformer";
+import { uploadFilesWithProgress } from "@/app_directories/services/uploadWithProgress";
 import type {
   Chat,
   ChatEnvelope,
   ClaimedPrekey,
   Room,
 } from "@/app_directories/types/chat";
-import type { User } from "@/app_directories/types/user";
 import { FetchMethod, type Snack } from "@/app_directories/types/types";
 import { getUserIdFromAccessToken } from "@/app_directories/utils/jwtPayload";
+import { resolvePlaybackUrl } from "@/app_directories/utils/playbackUrl";
+import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams } from "expo-router";
-import {
-  getChatInboxSocket,
-  refreshChatSocketAuth,
-} from "@/app_directories/services/chatInboxSocket";
-import { useMessageUnread } from "@/app_directories/context/MessageUnreadContext";
 import React, {
   useCallback,
   useEffect,
@@ -53,9 +61,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  TextInput,
+  useColorScheme,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 function sortChatsAsc(chats: Chat[]): Chat[] {
@@ -74,19 +83,117 @@ function isLikelyMediaUrl(text: string): boolean {
   );
 }
 
+const CLAIM_DEDUPE_MS = 8_000;
+const RETRY_BACKOFF_BASE_MS = 10_000;
+const RETRY_BACKOFF_MAX_MS = 40_000;
+const OUTBOUND_CACHE_KEY = "@afovid/chat/outbound-plaintext-v1";
+const OUTBOUND_CACHE_MAX = 500;
+const INBOUND_CACHE_KEY = "@afovid/chat/inbound-plaintext-v1";
+const INBOUND_CACHE_MAX = 1000;
+
+function isThrottle429(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const e = error as { status?: number; message?: string };
+  if (e.status === 429) return true;
+  return /too many requests|throttlerexception/i.test(e.message ?? "");
+}
+
 /** Look up a sender's device identity key from the cached room participants. */
 function findSenderIdentityKey(
+  directIdentityKey: string | null | undefined,
   room: Room | null,
-  senderUserId: string,
+  _senderUserId: string,
   senderDeviceId: string,
 ): string | null {
+  if (directIdentityKey) return directIdentityKey;
   if (!room?.participants) return null;
   for (const p of room.participants) {
-    if (p.id !== senderUserId) continue;
     const device = p.devices?.find((d) => d.id === senderDeviceId);
     if (device) return device.identityKeyCurve25519;
   }
   return null;
+}
+
+async function restoreInboundPlaintextCache(
+  cache: Map<string, string>,
+): Promise<void> {
+  try {
+    const raw = await AsyncStorage.getItem(INBOUND_CACHE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as Record<string, string>;
+    for (const [envelopeId, plaintext] of Object.entries(parsed)) {
+      if (
+        !envelopeId ||
+        typeof plaintext !== "string" ||
+        plaintext.length === 0
+      )
+        continue;
+      cache.set(envelopeId, plaintext);
+    }
+  } catch {
+    // Best-effort cache hydrate; unreadable cache should never break chat.
+  }
+}
+
+async function restoreOutboundPlaintextCache(
+  cache: Map<string, string>,
+): Promise<void> {
+  try {
+    const raw = await AsyncStorage.getItem(OUTBOUND_CACHE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as Record<string, string>;
+    for (const [chatId, plaintext] of Object.entries(parsed)) {
+      if (!chatId || typeof plaintext !== "string" || plaintext.length === 0)
+        continue;
+      cache.set(chatId, plaintext);
+    }
+  } catch {
+    // Best-effort cache hydrate; unreadable cache should never break chat.
+  }
+}
+
+async function persistInboundPlaintextCache(
+  cache: Map<string, string>,
+  envelopeId: string,
+  plaintext: string,
+): Promise<void> {
+  if (!envelopeId) return;
+  cache.set(envelopeId, plaintext);
+  try {
+    const next = Object.fromEntries(cache.entries());
+    const ids = Object.keys(next);
+    if (ids.length > INBOUND_CACHE_MAX) {
+      for (const staleId of ids.slice(0, ids.length - INBOUND_CACHE_MAX)) {
+        delete next[staleId];
+        cache.delete(staleId);
+      }
+    }
+    await AsyncStorage.setItem(INBOUND_CACHE_KEY, JSON.stringify(next));
+  } catch {
+    // Best-effort persistence only.
+  }
+}
+
+async function persistOutboundPlaintextCache(
+  cache: Map<string, string>,
+  chatId: string,
+  plaintext: string,
+): Promise<void> {
+  if (!chatId) return;
+  cache.set(chatId, plaintext);
+  try {
+    const next = Object.fromEntries(cache.entries());
+    const ids = Object.keys(next);
+    if (ids.length > OUTBOUND_CACHE_MAX) {
+      for (const staleId of ids.slice(0, ids.length - OUTBOUND_CACHE_MAX)) {
+        delete next[staleId];
+        cache.delete(staleId);
+      }
+    }
+    await AsyncStorage.setItem(OUTBOUND_CACHE_KEY, JSON.stringify(next));
+  } catch {
+    // Best-effort persistence only.
+  }
 }
 
 function ChatLine({
@@ -96,6 +203,7 @@ function ChatLine({
   room,
   accessToken,
   outboundPlaintext,
+  inboundPlaintext,
 }: {
   item: Chat;
   selfDeviceId: string;
@@ -103,9 +211,14 @@ function ChatLine({
   room: Room | null;
   accessToken: string;
   outboundPlaintext: Map<string, string>;
+  inboundPlaintext: Map<string, string>;
 }) {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
+  const { t } = useI18n();
   const [lineText, setLineText] = useState("…");
   const mine = item.senderUserId === selfUserId;
+  const unreadableText = t("chat.unreadable_on_this_device");
 
   useEffect(() => {
     let cancelled = false;
@@ -119,23 +232,29 @@ function ChatLine({
         // Olm sessions cannot decrypt their own outbound ciphertext; if we
         // missed caching (e.g., app restarted mid-send) there is nothing we
         // can show.
-        setLineText("—");
+        setLineText(unreadableText);
         return;
       }
       const env = item.envelopes?.find(
         (e) => e.recipientDeviceId === selfDeviceId,
       );
       if (!env) {
-        setLineText("—");
+        setLineText(unreadableText);
+        return;
+      }
+      const cachedInbound = env.id ? inboundPlaintext.get(env.id) : undefined;
+      if (cachedInbound) {
+        setLineText(cachedInbound);
         return;
       }
       const senderIdentity = findSenderIdentityKey(
+        item.senderIdentityKeyCurve25519,
         room,
         item.senderUserId,
         item.senderDeviceId,
       );
       if (!senderIdentity) {
-        setLineText("—");
+        setLineText(unreadableText);
         return;
       }
       try {
@@ -146,28 +265,51 @@ function ChatLine({
           messageType: env.messageType,
         });
         if (!cancelled) setLineText(plain);
+        if (env.id) {
+          void persistInboundPlaintextCache(inboundPlaintext, env.id, plain);
+        }
       } catch {
-        if (!cancelled) setLineText("—");
+        if (!cancelled) setLineText(unreadableText);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [item, mine, outboundPlaintext, room, selfDeviceId]);
+  }, [
+    inboundPlaintext,
+    item,
+    mine,
+    outboundPlaintext,
+    room,
+    selfDeviceId,
+    unreadableText,
+  ]);
 
-  const plain = lineText !== "…" && lineText !== "—" ? lineText.trim() : "";
+  const plain =
+    lineText !== "…" && lineText !== unreadableText ? lineText.trim() : "";
   const showRichMedia = !!plain && isLikelyMediaUrl(plain) && !!accessToken;
   const mediaUri = showRichMedia
     ? resolvePlaybackUrl(plain, accessToken, { requiresAuth: true })
     : "";
   const isVideo =
     /\.(mp4|webm)(\?|$)/i.test(plain) || plain.toLowerCase().includes("video");
+  const bubbleBg = mine
+    ? isDark
+      ? gray_700
+      : gray_300
+    : isDark
+      ? gray_900
+      : white;
+  const lineColor = isDark ? gray_200 : gray_900;
 
   return (
     <View
-      style={tailwindClasses(
-        `mb-2 max-w-[85%] rounded-lg px-3 py-2 ${mine ? "self-end bg-indigo-600" : "self-start bg-gray-200 dark:bg-gray-600"}`,
-      )}
+      style={[
+        tailwindClasses(
+          `mb-2 max-w-[85%] rounded-2xl px-3 py-2 ${mine ? "self-end" : "self-start"}`,
+        ),
+        { backgroundColor: bubbleBg },
+      ]}
     >
       {mediaUri && !isVideo ? (
         <Image
@@ -177,25 +319,11 @@ function ChatLine({
         />
       ) : null}
       {mediaUri && isVideo ? (
-        <Text
-          style={tailwindClasses(
-            mine
-              ? "text-white text-sm"
-              : "text-gray-900 dark:text-white text-sm",
-          )}
-        >
+        <Text style={{ color: lineColor, fontSize: 14 }}>
           Video attachment: {plain}
         </Text>
       ) : null}
-      {!mediaUri ? (
-        <Text
-          style={tailwindClasses(
-            mine ? "text-white" : "text-gray-900 dark:text-white",
-          )}
-        >
-          {lineText}
-        </Text>
-      ) : null}
+      {!mediaUri ? <Text style={{ color: lineColor }}>{lineText}</Text> : null}
     </View>
   );
 }
@@ -209,10 +337,22 @@ export default function MessageRoomScreen() {
   const uidPeer = typeof params.u === "string" ? params.u : params.u?.[0];
 
   const { t } = useI18n();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const tabBarHeight = useBottomTabBarHeight();
   const { snackBar, setSnackBar } = useSnackBar();
+  const screenBg = isDark ? gray_800 : gray_200;
+  const headerButtonBg = isDark ? gray_900 : white;
+  const headerIconColor = isDark ? gray_300 : gray_700;
+  const titleColor = isDark ? gray_200 : gray_900;
+  const composerBg = isDark ? gray_900 : white;
+  const composerBorder = isDark ? gray_700 : gray_300;
+  const composerInputColor = isDark ? gray_200 : gray_900;
+  const composerPlaceholder = isDark ? gray_400 : gray_500;
+  const composerActionIcon = isDark ? gray_300 : gray_700;
+  const sendIconDisabled = isDark ? gray_500 : gray_400;
+  const loaderColor = isDark ? gray_200 : gray_700;
 
   const showSnack = useCallback(
     (patch: Partial<Snack>) => {
@@ -230,9 +370,19 @@ export default function MessageRoomScreen() {
   const [registering, setRegistering] = useState(false);
   const [sending, setSending] = useState(false);
   const [accessToken, setAccessToken] = useState("");
+  const [retrySignal, setRetrySignal] = useState(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryInFlightRef = useRef(false);
+  const retryBackoffMsRef = useRef(RETRY_BACKOFF_BASE_MS);
+  const retryPausedUntilRef = useRef(0);
 
   /** Plaintext cache for outbound messages keyed by `chatId`. */
   const outboundPlaintext = useRef<Map<string, string>>(new Map()).current;
+  const inboundPlaintext = useRef<Map<string, string>>(new Map()).current;
+  const pendingRetryPlaintexts = useRef<string[]>([]);
+  const claimCacheRef = useRef<
+    Map<string, { at: number; bundles: ClaimedPrekey[] }>
+  >(new Map());
 
   const { setActiveChatRoom } = useMessageUnread();
   const listRef = useRef<FlatList<Chat>>(null);
@@ -245,20 +395,27 @@ export default function MessageRoomScreen() {
   const peerTitle = receiver?.name ?? room?.name ?? t("chat.page_title");
 
   useLayoutEffect(() => {
-    navigation.setOptions({ title: peerTitle });
+    navigation.setOptions({ headerShown: false });
   }, [navigation, peerTitle]);
 
   const fetchRoom = useCallback(
-    async (uid: string) => {
+    async (uid: string, currentDeviceId?: string | null) => {
+      const deviceQuery = currentDeviceId
+        ? `deviceId=${encodeURIComponent(currentDeviceId)}`
+        : "";
       if (rid) {
         const res = await ApiConnectService<Room>({
-          url: api_routes.room.room(rid),
+          url: deviceQuery
+            ? `${api_routes.room.room(rid)}?${deviceQuery}`
+            : api_routes.room.room(rid),
           method: FetchMethod.GET,
         });
         if (res.data) setRoom(res.data);
       } else if (uidPeer) {
         const res = await ApiConnectService<Room>({
-          url: api_routes.room.findRoomByParticipantsOrCreate(uidPeer, uid),
+          url: deviceQuery
+            ? `${api_routes.room.findRoomByParticipantsOrCreate(uidPeer, uid)}&${deviceQuery}`
+            : api_routes.room.findRoomByParticipantsOrCreate(uidPeer, uid),
           method: FetchMethod.POST,
         });
         if (res.data) setRoom(res.data);
@@ -283,10 +440,13 @@ export default function MessageRoomScreen() {
     }
 
     await ensureOlmReady();
-    setSelfDeviceId(await getStoredDeviceId());
+    await restoreOutboundPlaintextCache(outboundPlaintext);
+    await restoreInboundPlaintextCache(inboundPlaintext);
+    const currentDeviceId = await getStoredDeviceId();
+    setSelfDeviceId(currentDeviceId);
 
     try {
-      await fetchRoom(uid);
+      await fetchRoom(uid, currentDeviceId);
     } catch {
       showSnack({
         type: "error",
@@ -358,6 +518,15 @@ export default function MessageRoomScreen() {
         message: err?.message ?? t("chat.send_failed"),
       });
     };
+    const onRecipientDevicesAvailable = (evt: {
+      roomId?: string;
+      recipientUserId?: string;
+    }) => {
+      if (!evt?.recipientUserId || evt.recipientUserId !== receiver?.id) return;
+      if (evt.roomId && evt.roomId !== activeRoomId) return;
+      if (pendingRetryPlaintexts.current.length === 0) return;
+      setRetrySignal((v) => v + 1);
+    };
 
     const onConnect = () => {
       s.emit("join-room", { roomId: activeRoomId, userId: selfId });
@@ -365,6 +534,7 @@ export default function MessageRoomScreen() {
 
     s.on("receive-message", onReceive);
     s.on("exception", onException);
+    s.on("recipient-devices-available", onRecipientDevicesAvailable);
     s.on("connect", onConnect);
     s.auth = { ...(s.auth as object | undefined), deviceId: selfDeviceId };
     if (s.connected) {
@@ -380,9 +550,10 @@ export default function MessageRoomScreen() {
     return () => {
       s.off("receive-message", onReceive);
       s.off("exception", onException);
+      s.off("recipient-devices-available", onRecipientDevicesAvailable);
       s.off("connect", onConnect);
     };
-  }, [room?.id, selfDeviceId, selfId, showSnack, t]);
+  }, [receiver?.id, room?.id, selfDeviceId, selfId, showSnack, t]);
 
   const onRegister = useCallback(async () => {
     if (!selfId) return;
@@ -407,6 +578,7 @@ export default function MessageRoomScreen() {
   const buildEnvelopes = useCallback(
     async (
       plaintext: string,
+      preclaimed?: Record<string, ClaimedPrekey[]>,
     ): Promise<
       Pick<
         ChatEnvelope,
@@ -418,12 +590,31 @@ export default function MessageRoomScreen() {
         .map((p) => p.id)
         .filter((id): id is string => !!id);
 
-      const claims: Record<string, ClaimedPrekey[]> = {};
-      await Promise.all(
-        recipients.map(async (uid) => {
-          claims[uid] = await claimPrekeys(uid);
-        }),
-      );
+      const now = Date.now();
+      const claims: Record<string, ClaimedPrekey[]> = preclaimed ?? {};
+      if (!preclaimed) {
+        await Promise.all(
+          recipients.map(async (uid) => {
+            const cached = claimCacheRef.current.get(uid);
+            if (cached && now - cached.at < CLAIM_DEDUPE_MS) {
+              claims[uid] = cached.bundles;
+              return;
+            }
+            try {
+              const bundles = await claimPrekeys(uid);
+              claims[uid] = bundles;
+              claimCacheRef.current.set(uid, { at: Date.now(), bundles });
+            } catch (e) {
+              if (isThrottle429(e)) {
+                const err = new Error("Too Many Requests");
+                (err as Error & { status?: number }).status = 429;
+                throw err;
+              }
+              claims[uid] = [];
+            }
+          }),
+        );
+      }
 
       const out: Array<{
         recipientUserId: string;
@@ -463,33 +654,30 @@ export default function MessageRoomScreen() {
     [room, selfDeviceId, selfId],
   );
 
-  const send = useCallback(async () => {
-    if (sending || !draft.trim() || !room?.id || !selfId || !selfDeviceId)
-      return;
-    setSending(true);
-    const plaintext = draft;
-    try {
-      const envelopes = await buildEnvelopes(plaintext);
-      if (envelopes.length === 0) {
-        showSnack({
-          type: "error",
-          title: t("common.error"),
-          message: t("security.no_peer_devices"),
-        });
-        return;
-      }
+  const emitEncryptedMessage = useCallback(
+    async (
+      plaintext: string,
+      preclaimed?: Record<string, ClaimedPrekey[]>,
+    ): Promise<boolean> => {
+      if (!room?.id || !selfDeviceId) return false;
+      const envelopes = await buildEnvelopes(plaintext, preclaimed);
+      if (envelopes.length === 0) return false;
       const payload = {
         roomId: room.id,
         senderDeviceId: selfDeviceId,
         envelopes,
       };
-      setDraft("");
       getChatInboxSocket().emit(
         "send-message",
         payload,
         (ack: Chat | undefined) => {
           if (!ack?.id) return;
           outboundPlaintext.set(ack.id, plaintext);
+          void persistOutboundPlaintextCache(
+            outboundPlaintext,
+            ack.id,
+            plaintext,
+          );
           setMessages((prev) => {
             if (prev.some((m) => m.id === ack.id)) return prev;
             return sortChatsAsc([...prev, ack]);
@@ -497,6 +685,120 @@ export default function MessageRoomScreen() {
         },
       );
       void replenishOtksIfNeeded();
+      return true;
+    },
+    [buildEnvelopes, outboundPlaintext, room?.id, selfDeviceId],
+  );
+
+  const schedulePendingRetry = useCallback(
+    (delayMs = 10_000) => {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = setTimeout(() => {
+        retryTimerRef.current = null;
+        if (retryInFlightRef.current) return;
+        retryInFlightRef.current = true;
+        void (async () => {
+          try {
+            const now = Date.now();
+            if (retryPausedUntilRef.current > now) {
+              schedulePendingRetry(retryPausedUntilRef.current - now);
+              return;
+            }
+            if (
+              !room?.id ||
+              !selfId ||
+              !selfDeviceId ||
+              pendingRetryPlaintexts.current.length === 0
+            ) {
+              return;
+            }
+            const recipients = (room.participants ?? [])
+              .map((p) => p.id)
+              .filter((id): id is string => !!id);
+            const claimNow = Date.now();
+            const preclaimed: Record<string, ClaimedPrekey[]> = {};
+            await Promise.all(
+              recipients.map(async (uid) => {
+                const cached = claimCacheRef.current.get(uid);
+                if (cached && claimNow - cached.at < CLAIM_DEDUPE_MS) {
+                  preclaimed[uid] = cached.bundles;
+                  return;
+                }
+                const bundles = await claimPrekeys(uid);
+                preclaimed[uid] = bundles;
+                claimCacheRef.current.set(uid, { at: Date.now(), bundles });
+              }),
+            );
+            const stillPending: string[] = [];
+            let deliveredCount = 0;
+            for (const plaintext of pendingRetryPlaintexts.current) {
+              try {
+                const delivered = await emitEncryptedMessage(
+                  plaintext,
+                  preclaimed,
+                );
+                if (delivered) deliveredCount += 1;
+                else stillPending.push(plaintext);
+              } catch {
+                stillPending.push(plaintext);
+              }
+            }
+            pendingRetryPlaintexts.current = stillPending;
+            retryBackoffMsRef.current = RETRY_BACKOFF_BASE_MS;
+            retryPausedUntilRef.current = 0;
+            if (deliveredCount > 0) {
+              showSnack({
+                type: "success",
+                title: t("common.success"),
+                message:
+                  deliveredCount === 1
+                    ? "Queued message delivered."
+                    : `${deliveredCount} queued messages delivered.`,
+              });
+            }
+            if (pendingRetryPlaintexts.current.length > 0) {
+              schedulePendingRetry();
+            }
+          } catch (e) {
+            if (isThrottle429(e)) {
+              const pause = retryBackoffMsRef.current;
+              retryPausedUntilRef.current = Date.now() + pause;
+              retryBackoffMsRef.current = Math.min(
+                retryBackoffMsRef.current * 2,
+                RETRY_BACKOFF_MAX_MS,
+              );
+              schedulePendingRetry(pause);
+              return;
+            }
+            schedulePendingRetry();
+          } finally {
+            retryInFlightRef.current = false;
+          }
+        })();
+      }, delayMs);
+    },
+    [emitEncryptedMessage, room, selfDeviceId, selfId, showSnack, t],
+  );
+
+  const send = useCallback(async () => {
+    if (sending || !draft.trim() || !room?.id || !selfId || !selfDeviceId)
+      return;
+    setSending(true);
+    const plaintext = draft.trim();
+    setDraft("");
+    try {
+      const delivered = await emitEncryptedMessage(plaintext);
+      if (!delivered) {
+        pendingRetryPlaintexts.current.push(plaintext);
+        showSnack({
+          type: "info",
+          title: t("chat.page_title"),
+          message:
+            "No recipient devices yet. Message queued and will auto-send when a device appears.",
+        });
+        schedulePendingRetry(3_000);
+        return;
+      }
     } catch (e) {
       showSnack({
         type: "error",
@@ -509,14 +811,42 @@ export default function MessageRoomScreen() {
   }, [
     buildEnvelopes,
     draft,
+    emitEncryptedMessage,
     outboundPlaintext,
     room?.id,
+    schedulePendingRetry,
     selfDeviceId,
     selfId,
     sending,
     showSnack,
     t,
   ]);
+
+  useEffect(() => {
+    if (
+      !room?.id ||
+      !selfId ||
+      !selfDeviceId ||
+      pendingRetryPlaintexts.current.length === 0
+    ) {
+      return;
+    }
+    // As soon as chat/device context is ready, kick the retry loop instead of
+    // waiting for the next scheduled poll.
+    schedulePendingRetry(1_000);
+  }, [room?.id, schedulePendingRetry, selfDeviceId, selfId]);
+
+  useEffect(() => {
+    if (retrySignal <= 0) return;
+    if (pendingRetryPlaintexts.current.length === 0) return;
+    schedulePendingRetry(300);
+  }, [retrySignal, schedulePendingRetry]);
+
+  useEffect(() => {
+    return () => {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    };
+  }, []);
 
   const pickAndAttachImage = useCallback(async () => {
     if (!room?.id) return;
@@ -530,7 +860,7 @@ export default function MessageRoomScreen() {
       return;
     }
     const pick = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ["images"],
       quality: 0.85,
     });
     if (pick.canceled || !pick.assets[0]) return;
@@ -561,23 +891,38 @@ export default function MessageRoomScreen() {
 
   if (loading || !selfId) {
     return (
-      <View style={tailwindClasses("flex-1 items-center justify-center")}>
-        <ActivityIndicator />
+      <View
+        style={[
+          tailwindClasses("flex-1 items-center justify-center"),
+          { backgroundColor: screenBg },
+        ]}
+      >
+        <ActivityIndicator color={loaderColor} />
       </View>
     );
   }
 
   if (!room?.id) {
     return (
-      <View style={tailwindClasses("flex-1 items-center justify-center p-4")}>
-        <Text>{t("messages.no_results")}</Text>
+      <View
+        style={[
+          tailwindClasses("flex-1 items-center justify-center p-4"),
+          { backgroundColor: screenBg },
+        ]}
+      >
+        <Text style={{ color: titleColor }}>{t("messages.no_results")}</Text>
       </View>
     );
   }
 
   if (!selfDeviceId) {
     return (
-      <View style={tailwindClasses("flex-1 px-4 py-6")}>
+      <View
+        style={[
+          tailwindClasses("flex-1 px-4 py-6"),
+          { backgroundColor: screenBg },
+        ]}
+      >
         <EncryptionSetupPanel
           busy={registering}
           onRegister={() => void onRegister()}
@@ -589,13 +934,45 @@ export default function MessageRoomScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-      style={tailwindClasses("flex-1")}
-      keyboardVerticalOffset={80}
+      style={[tailwindClasses("flex-1"), { backgroundColor: screenBg }]}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 16 : 0}
     >
+      <View
+        style={[
+          tailwindClasses("px-3"),
+          { paddingTop: insets.top + 6, paddingBottom: 12 },
+        ]}
+      >
+        <View style={tailwindClasses("flex-row items-center")}>
+          <Pressable
+            onPress={() => navigation.goBack()}
+            accessibilityLabel="Go back"
+            style={[
+              tailwindClasses(
+                "h-12 w-12 items-center justify-center rounded-lg",
+              ),
+              { backgroundColor: headerButtonBg },
+            ]}
+          >
+            <Ionicons name="arrow-back" size={21} color={headerIconColor} />
+          </Pressable>
+          <Text
+            style={{
+              marginLeft: 16,
+              fontSize: 24,
+              fontWeight: 600,
+              color: titleColor,
+            }}
+          >
+            {peerTitle}
+          </Text>
+        </View>
+      </View>
+
       <FlatList
         ref={listRef}
-        style={tailwindClasses("flex-1 px-4")}
-        contentContainerStyle={{ paddingBottom: 12 }}
+        style={tailwindClasses("flex-1 px-3")}
+        contentContainerStyle={{ paddingBottom: 14, paddingTop: 8 }}
         data={messages}
         keyExtractor={(m, i) => m.id ?? `m-${i}`}
         keyboardShouldPersistTaps="handled"
@@ -610,41 +987,69 @@ export default function MessageRoomScreen() {
             room={room}
             accessToken={accessToken}
             outboundPlaintext={outboundPlaintext}
+            inboundPlaintext={inboundPlaintext}
           />
         )}
       />
 
       <View
-        style={tailwindClasses(
-          "border-t border-gray-200 p-2 dark:border-gray-600",
-        )}
+        style={tailwindClasses("px-3 pb-0.5")}
         accessibilityLabel="chat-composer"
       >
         <View
           style={{
-            paddingBottom: Math.max(insets.bottom, 8) + tabBarHeight,
+            paddingBottom: Math.max(insets.bottom, 2),
           }}
         >
-          <View style={tailwindClasses("flex-row items-end gap-2")}>
+          <View
+            style={[
+              tailwindClasses(
+                "flex-row items-center rounded-lg border px-3 py-2",
+              ),
+              { borderColor: composerBorder, backgroundColor: composerBg },
+            ]}
+          >
+            <TextInput
+              placeholder={t("chat.new")}
+              placeholderTextColor={composerPlaceholder}
+              value={draft}
+              onChangeText={setDraft}
+              multiline
+              style={[
+                tailwindClasses(
+                  "max-h-28 flex-1 px-1 py-2 rounded-lg text-base",
+                ),
+                { color: composerInputColor, textAlignVertical: "center" },
+              ]}
+            />
             <Pressable
               onPress={() => void pickAndAttachImage()}
-              style={tailwindClasses("p-2")}
+              style={tailwindClasses("px-1.5 py-1")}
               accessibilityLabel="Attach image"
             >
-              <Ionicons name="image-outline" size={26} color="#6366f1" />
-            </Pressable>
-            <View style={tailwindClasses("flex-1")}>
-              <FormInput
-                placeholder={t("chat.new")}
-                value={draft}
-                onChangeText={setDraft}
-                multiline
+              <Ionicons
+                name="image-outline"
+                size={21}
+                color={composerActionIcon}
               />
-            </View>
+            </Pressable>
+            <Pressable
+              onPress={() => void send()}
+              disabled={sending || !draft.trim()}
+              style={tailwindClasses("pl-2 pr-0.5 py-1")}
+              accessibilityLabel="Send message"
+            >
+              {sending ? (
+                <ActivityIndicator size="small" color={composerInputColor} />
+              ) : (
+                <Ionicons
+                  name="send"
+                  size={20}
+                  color={draft.trim() ? composerInputColor : sendIconDisabled}
+                />
+              )}
+            </Pressable>
           </View>
-          <AppButton onPress={() => void send()}>
-            {sending ? <ActivityIndicator color="#fff" /> : t("posts.publish")}
-          </AppButton>
         </View>
       </View>
     </KeyboardAvoidingView>

@@ -39,6 +39,7 @@ export interface Chat {
   roomId: string;
   senderUserId: string;
   senderDeviceId: string;
+  senderIdentityKeyCurve25519?: string | null;
   createdAt?: DateString | null;
   deletedAt?: DateString | null;
   /** Envelopes visible to the calling device (at most one per chat). */

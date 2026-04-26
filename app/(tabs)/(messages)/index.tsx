@@ -1,8 +1,8 @@
-import Text from "@/app_directories/components/app/Text";
 import FloatingActionButton from "@/app_directories/components/app/FloatingActionButton";
+import Text from "@/app_directories/components/app/Text";
 import EncryptionSetupPanel from "@/app_directories/components/messages/EncryptionSetupPanel";
-import { app_routes } from "@/app_directories/constants/AppRoutes";
 import api_routes from "@/app_directories/constants/ApiRoutes";
+import { app_routes } from "@/app_directories/constants/AppRoutes";
 import {
   gray_200,
   gray_300,
@@ -11,9 +11,6 @@ import {
   gray_700,
   gray_800,
   gray_900,
-  messages_border,
-  messages_card_bg,
-  messages_screen_bg,
   white,
 } from "@/app_directories/constants/Colors";
 import { useI18n } from "@/app_directories/context/I18nProvider";
@@ -26,19 +23,19 @@ import {
   replenishOtksIfNeeded,
 } from "@/app_directories/crypto/olm/deviceApi";
 import {
-  getChatInboxSocket,
-  refreshChatSocketAuth,
-} from "@/app_directories/services/chatInboxSocket";
-import {
   ApiConnectService,
   getTokens,
 } from "@/app_directories/services/ApiConnectService";
+import {
+  getChatInboxSocket,
+  refreshChatSocketAuth,
+} from "@/app_directories/services/chatInboxSocket";
 import tailwindClasses from "@/app_directories/services/ClassTransformer";
 import type { Chat, Room } from "@/app_directories/types/chat";
 import { FetchMethod } from "@/app_directories/types/types";
 import { getUserIdFromAccessToken } from "@/app_directories/utils/jwtPayload";
-import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
 import {
   useFocusEffect,
   useRouter,
@@ -81,15 +78,15 @@ export default function MessagesIndex() {
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [registering, setRegistering] = useState(false);
 
-  const screenBg = isDark ? messages_screen_bg : gray_200;
-  const cardBg = isDark ? messages_card_bg : white;
-  const cardBorder = isDark ? messages_border : gray_200;
+  const screenBg = isDark ? gray_800 : gray_200;
+  const backBtnBg = isDark ? gray_900 : white;
   const titleColor = isDark ? white : gray_900;
   const nameColor = isDark ? white : gray_900;
   const emptyColor = isDark ? gray_500 : gray_600;
-  const backControlBg = isDark ? messages_card_bg : white;
   const avatarPlaceholderBg = isDark ? gray_600 : gray_300;
   const activityColor = isDark ? white : gray_800;
+  const roomCardBg = isDark ? gray_900 : white;
+  const roomCardBorder = isDark ? gray_700 : gray_300;
 
   const showSnack = useCallback(
     (message: string) => {
@@ -126,7 +123,7 @@ export default function MessagesIndex() {
       setDeviceId(await getStoredDeviceId());
 
       const roomsRes = await ApiConnectService<Room[]>({
-        url: `${api_routes.room.rooms}?skip=0&take=50`,
+        url: `${api_routes.room.rooms}?skip=0&take=50&deviceId=${encodeURIComponent((await getStoredDeviceId()) ?? "")}`,
         method: FetchMethod.GET,
       });
 
@@ -242,9 +239,7 @@ export default function MessagesIndex() {
             width: 40,
             height: 40,
             borderRadius: 8,
-            backgroundColor: backControlBg,
-            borderWidth: isDark ? 1 : 0,
-            borderColor: cardBorder,
+            backgroundColor: backBtnBg,
             alignItems: "center",
             justifyContent: "center",
           }}
@@ -329,9 +324,9 @@ export default function MessagesIndex() {
                     alignItems: "center",
                     padding: 12,
                     borderRadius: 10,
-                    backgroundColor: cardBg,
+                    backgroundColor: roomCardBg,
                     borderWidth: 1,
-                    borderColor: cardBorder,
+                    borderColor: roomCardBorder,
                   }}
                 >
                   {img ? (

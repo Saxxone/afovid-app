@@ -1,31 +1,24 @@
 import Text from "@/app_directories/components/app/Text";
-import { app_routes } from "@/app_directories/constants/AppRoutes";
 import api_routes from "@/app_directories/constants/ApiRoutes";
+import { app_routes } from "@/app_directories/constants/AppRoutes";
 import {
   gray_100,
   gray_200,
-  gray_300,
   gray_400,
   gray_500,
   gray_600,
   gray_700,
   gray_800,
   gray_900,
-  messages_border,
-  messages_card_bg,
-  search_back_button_bg,
-  search_placeholder_muted,
-  search_shell_screen_bg,
-  search_well_bg,
   white,
 } from "@/app_directories/constants/Colors";
 import { useI18n } from "@/app_directories/context/I18nProvider";
 import { ApiConnectService } from "@/app_directories/services/ApiConnectService";
 import tailwindClasses from "@/app_directories/services/ClassTransformer";
-import type { User } from "@/app_directories/types/user";
 import { FetchMethod } from "@/app_directories/types/types";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import type { User } from "@/app_directories/types/user";
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter, type Href } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -53,17 +46,16 @@ export default function NewDirectMessage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const screenBg = isDark ? search_shell_screen_bg : gray_200;
-  const backBtnBg = isDark ? search_back_button_bg : white;
-  const backBtnBorder = isDark ? messages_border : gray_200;
+  const screenBg = isDark ? gray_800 : gray_200;
+  const backBtnBg = isDark ? gray_900 : white;
   const titleColor = isDark ? white : gray_900;
-  const searchWellBg = isDark ? search_well_bg : white;
+  const searchWellBg = isDark ? gray_900 : white;
   const searchWellBorder = isDark ? "transparent" : gray_200;
   const inputTextColor = isDark ? gray_100 : gray_900;
-  const placeholderColor = isDark ? search_placeholder_muted : gray_500;
-  const searchIconColor = isDark ? search_placeholder_muted : gray_600;
-  const cardBg = isDark ? messages_card_bg : white;
-  const cardBorder = isDark ? messages_border : gray_200;
+  const placeholderColor = isDark ? gray_500 : gray_400;
+  const searchIconColor = isDark ? gray_500 : gray_400;
+  const cardBg = isDark ? gray_900 : white;
+  const cardBorder = isDark ? gray_700 : gray_200;
   const nameColor = isDark ? white : gray_900;
   const subColor = isDark ? gray_400 : gray_600;
   const emptyColor = isDark ? gray_500 : gray_600;
@@ -153,8 +145,6 @@ export default function NewDirectMessage() {
             height: 40,
             borderRadius: 6,
             backgroundColor: backBtnBg,
-            borderWidth: isDark ? 1 : 0,
-            borderColor: backBtnBorder,
             alignItems: "center",
             justifyContent: "center",
           }}

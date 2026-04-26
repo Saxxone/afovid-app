@@ -80,12 +80,30 @@ export async function registerDeviceWithServer(
 export async function claimPrekeys(
   targetUserId: string,
 ): Promise<ClaimedPrekey[]> {
-  const res = await ApiConnectService<{ bundles: ClaimedPrekey[] }>({
+  const res = await ApiConnectService<
+    { bundles: ClaimedPrekey[] } | ClaimedPrekey[]
+  >({
     url: api_routes.devices.claim,
     method: FetchMethod.POST,
     body: { targetUserId },
   });
-  return res.data?.bundles ?? [];
+  if (res.error) {
+    const status =
+      typeof res.error === "object" && res.error !== null
+        ? (res.error as { status?: number }).status
+        : undefined;
+    const message =
+      typeof res.error === "object" && res.error !== null
+        ? (res.error as { message?: string }).message
+        : undefined;
+    const err = new Error(message ?? "Failed to claim prekeys");
+    if (typeof status === "number") {
+      (err as Error & { status?: number }).status = status;
+    }
+    throw err;
+  }
+  const data = res.data;
+  return Array.isArray(data) ? data : (data?.bundles ?? []);
 }
 
 export async function fetchOtkCount(deviceId: string): Promise<number> {

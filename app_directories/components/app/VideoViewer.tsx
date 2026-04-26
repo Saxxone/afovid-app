@@ -5,6 +5,7 @@ import { ApiConnectService } from "@/app_directories/services/ApiConnectService"
 import tailwindClasses from "@/app_directories/services/ClassTransformer";
 import { FetchMethod } from "@/app_directories/types/types";
 import { Ionicons } from "@expo/vector-icons";
+import { useIsFocused } from "@react-navigation/native";
 import { useEvent } from "expo";
 import {
   allowScreenCaptureAsync,
@@ -19,7 +20,13 @@ import {
   useRef,
   useState,
 } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
+import {
+  ActivityIndicator,
+  AppState,
+  Pressable,
+  StyleSheet,
+  View,
+} from "react-native";
 
 interface Props {
   source: string;
@@ -51,10 +58,12 @@ export default function VideoScreen({
   recordWatchPostId,
 }: Props) {
   const nativeControls = controls ?? true;
+  const isFocused = useIsFocused();
 
   const isFeedInline = autoplay === true && nativeControls === false;
   const [feedUserWantsUnmuted, setFeedUserWantsUnmuted] = useState(false);
   const [hasRenderedFrame, setHasRenderedFrame] = useState(false);
+  const [appState, setAppState] = useState(AppState.currentState);
 
   const shouldForceMute = useMemo(
     () => isFeedInline && !(showMuteToggle === true && feedUserWantsUnmuted),
@@ -86,6 +95,24 @@ export default function VideoScreen({
   });
 
   const watchRecordedRef = useRef(false);
+  const unmountedRef = useRef(false);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", setAppState);
+    return () => sub.remove();
+  }, []);
+
+  useEffect(() => {
+    unmountedRef.current = false;
+    return () => {
+      unmountedRef.current = true;
+      try {
+        player.pause();
+      } catch {
+        // Best-effort cleanup during teardown.
+      }
+    };
+  }, [player]);
 
   useEffect(() => {
     setHasRenderedFrame(false);
@@ -150,7 +177,7 @@ export default function VideoScreen({
   }, [screenCaptureKey]);
 
   useEffect(() => {
-    if (shouldPlay === false) {
+    if (shouldPlay === false || !isFocused || appState !== "active") {
       player.pause();
       return;
     }
@@ -168,6 +195,7 @@ export default function VideoScreen({
         "catch" in maybePlayResult
       ) {
         void (maybePlayResult as Promise<void>).catch(() => {
+          if (unmountedRef.current) return;
           // Android can reject keep-awake activation when the Activity is already
           // torn down during fast navigation/background transitions.
         });
@@ -178,7 +206,15 @@ export default function VideoScreen({
     if (shouldForceMute) {
       player.muted = true;
     }
-  }, [player, shouldPlay, autoplay, shouldForceMute, status]);
+  }, [
+    player,
+    shouldPlay,
+    autoplay,
+    shouldForceMute,
+    status,
+    isFocused,
+    appState,
+  ]);
 
   const toggleFeedMute = useCallback(() => {
     if (!showMuteToggleWhenViewable) return;

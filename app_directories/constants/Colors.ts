@@ -38,18 +38,6 @@ export const gray_50 = "#f9fafb";
 
 export const white = "#fff";
 
-/** DM / messages list (reference UI) */
-export const messages_screen_bg = "#1a222e";
-export const messages_card_bg = "#161d26";
-export const messages_fab = "#9a7eff";
-export const messages_border = "#0f1318";
-
-/** Post search + DM new user search (shared “search shell” reference UI). */
-export const search_shell_screen_bg = "#1e2530";
-export const search_well_bg = "#131722";
-export const search_back_button_bg = "#1a202c";
-export const search_placeholder_muted = "#94a3b8";
-
 export const primary = "#6366f1";
 
 // indigo
